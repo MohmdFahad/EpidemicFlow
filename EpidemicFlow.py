@@ -39,12 +39,17 @@ def make_grid(
 
     quarantine_duration_grid = np.zeros((grid_size, grid_size), dtype=np.int_)
 
+    infection_spread_delay_grid = np.zeros_like(grid)
+    infection_spread_delay_grid[...] = -1
+
     return (
         grid,
         recovery_grid,
         was_ever_aware,
         was_ever_quarantined,
         quarantine_duration_grid,
+        infection_spread_delay_grid,
+
     )
 
 
@@ -112,10 +117,12 @@ def get_pos(grid: np.ndarray, label: int) -> np.ndarray:
 def grid_status_update(
         grid: np.ndarray,
         was_ever_aware_grid: np.ndarray,
+        was_ever_quarantined: np.ndarray,
         quarantine_duration_grid: np.ndarray,
         day: int,
         gridsize: int,
         awarness_rate: float = None,
+        quarantine_chance: float = None,
 ):
     quarantine_pos = get_pos(grid, 3)
     for pos in quarantine_pos:
@@ -132,9 +139,45 @@ def grid_status_update(
                 pos[0].astype(np.int_), pos[1].astype(np.int_)
             ] -= 1
 
+
+
+    infected_pos = get_pos(grid,1)
+    infected_aware_pos = get_pos(grid,5)
+    if infected_aware_pos.size != 0:
+        infected_pos = np.vstack([infected_pos,infected_aware_pos])
+    for pos in infected_pos:
+        score = get_score(grid,get_neighbours(pos,gridsize),1)
+        if score >= .5:
+            chance = np.random.random()
+            if chance < quarantine_chance:
+                grid[pos[0].astype(np.int_), pos[1].astype(np.int_)] = 6
+                min_days = 7
+                max_days = 14
+                days = np.random.randint(min_days, max_days + 1)
+                quarantine_duration_grid[pos[0].astype(np.int_), pos[1].astype(np.int_)] = days
+                was_ever_quarantined[pos[0].astype(np.int_), pos[1].astype(np.int_)] = True
+
+
+        infected_quarantined_pos = get_pos(grid,6)
+        for pos in infected_quarantined_pos:
+            if pos.size == 0:
+                continue
+            if (
+                    quarantine_duration_grid[pos[0].astype(np.int_), pos[1].astype(np.int_)]
+                    == 0
+            ):
+                grid[pos[0].astype(np.int_), pos[1].astype(np.int_)] = 5
+                was_ever_aware_grid[pos[0].astype(np.int_), pos[1].astype(np.int_)] = True
+            else:
+                quarantine_duration_grid[
+                    pos[0].astype(np.int_), pos[1].astype(np.int_)
+                ] -= 1
+
+
+
     positions = get_pos(grid, 4)
     positions2 = get_pos(grid, 5)
-    if positions2.size != 0:
+    if  positions.size !=0 and positions2.size != 0:
         positions = np.vstack([positions, get_pos(grid,5)])
 
     N_total = gridsize * gridsize
@@ -179,7 +222,7 @@ def spread_awarness(
         awarness_rate: float = None,
 ):
     # if the individual is susceptible
-    if grid[pos[0], pos[1]] == 0:
+    if grid[pos[0], pos[1]] == 0 | grid[pos[0], pos[1]] == 1:
         chance = np.random.random()  # produces a random chance
         score = get_score(
             grid, get_neighbours(pos, gridsize), 4
@@ -204,8 +247,12 @@ def spread_awarness(
         if (
                 awarness_rate and chance < awarness_rate * sigmoid
         ):  # If the indivdual falls in the chance of being aware
-            grid[pos[0], pos[1]] = 4
-            was_ever_aware_grid[pos[0], pos[1]] = True
+            if grid[pos[0], pos[1]] == 1:
+                grid[pos[0], pos[1]] = 5
+                was_ever_aware_grid[pos[0], pos[1]] = True
+            else:
+                grid[pos[0], pos[1]] = 4
+                was_ever_aware_grid[pos[0], pos[1]] = True
             """neighbours = get_neighbours(pos, grid.shape[0])
             # to spread awarness to the individuals neighbours
             for neighbour in neighbours:
@@ -262,6 +309,7 @@ def infect(
         was_ever_aware_grid: np.ndarray,
         was_ever_quarantined: np.ndarray,
         quarantine_duration_grid: np.ndarray,
+        infection_spread_delay_grid: np.ndarray,
         infection_prob: float,
         awarness_rate: float = None,
         quarantine_chance: float = None,
@@ -274,13 +322,30 @@ def infect(
 
     recovered_pos = get_pos(grid, 2)
 
+    infection_spread_delay_grid[infection_spread_delay_grid > 0] -= 1
+
     awarness_pos = get_pos(grid, 4)  # --
 
     gridsize = grid.shape[0]
 
     for x in infected_pos:  # for each infected individual
 
+        if infection_spread_delay_grid[x[0], x[1]] > 0:
+            continue
+
         neighbours = get_neighbours(x, gridsize)
+
+        diseased = np.array([])
+
+        aware_diseased = np.array([])
+
+        aware_neighbours = np.array([])
+        for neighbour in neighbours:
+            if grid[neighbour[0], neighbour[1]] == 4:
+                if aware_neighbours.size == 0:
+                    aware_neighbours = np.array([neighbour])
+                else:
+                    aware_neighbours = np.vstack([aware_neighbours,neighbour])
 
         if infected_pos.size != 0:  # --
             # to remove already infected neighbours from being
@@ -293,22 +358,35 @@ def infect(
                 mask3 = neighbours[:, 0] != y[0]
                 mask4 = neighbours[:, 1] != y[1]
                 neighbours = neighbours[np.logical_or(mask3, mask4)]
+        if aware_neighbours.size != 0:
+            for y in aware_neighbours:
+                mask3 = neighbours[:, 0] != y[0]
+                mask4 = neighbours[:, 1] != y[1]
+                neighbours = neighbours[np.logical_or(mask3, mask4)]
+            chance_of_disease = np.random.random((aware_neighbours.size // 2,))
+            infection_prob_aware = infection_prob * (1 - awarness_efficacy)
+            if grid[x[0], x[1]] == 5:
+                infection_prob_aware = infection_prob_aware * 0.4
+            diseased = chance_of_disease < infection_prob_aware
+            aware_diseased = aware_neighbours[diseased]
 
 
-
-        chance_of_disease = np.random.random((neighbours.size // 2,))
-
+        chance_of_disease = np.random.random(( neighbours.size// 2,))
         if grid[x[0], x[1]] == 5:
             reduced_prob = infection_prob * 0.4
             diseased = chance_of_disease < reduced_prob
         else:
             diseased = chance_of_disease < infection_prob
-        diseased = neighbours[diseased]
+        if aware_diseased.size != 0:
+            diseased = np.vstack([aware_diseased,neighbours[diseased]])
+        else:
+            diseased = neighbours[diseased]
 
         # for spreading the infection in grid
         for y in diseased:
             score = get_score(grid, get_neighbours(y, gridsize), 1)
             infection_percent = grid[grid == 1].size / gridsize ** 2
+
             # When surrounded by fully infected individuals
             if score >= .5:
 
@@ -319,8 +397,12 @@ def infect(
                         if chance > quarantine_chance:  # infect the individual
                             if grid[y[0], y[1]] == 4:
                                 grid[y[0], y[1]] = 5
+                                latent_period =  np.random.randint(1,4)
+                                infection_spread_delay_grid[y[0], y[1]] = latent_period
                             else:
                                 grid[y[0], y[1]] = 1
+                                latent_period = np.random.randint(1, 4)
+                                infection_spread_delay_grid[y[0], y[1]] = latent_period
                         else:  # quarantine the individual
                             grid[y[0], y[1]] = 3
                             was_ever_quarantined[y[0], y[1]] = True
@@ -337,32 +419,44 @@ def infect(
                         )
                         if new_chance_infection > chance:
                             grid[y[0], y[1]] = 1
+                            latent_period = np.random.randint(1, 4)
+                            infection_spread_delay_grid[y[0], y[1]] = latent_period
                         else:
                             continue
                 else:
                     # infect
                     grid[y[0], y[1]] = 1
+                    latent_period = np.random.randint(1, 4)
+                    infection_spread_delay_grid[y[0], y[1]] = latent_period
             else:
                 #
                 if grid[y[0], y[1]] != 4:
                     if awarness_rate:
+                        scoreA = get_score(grid, get_neighbours(y, gridsize), 4) + get_score(grid,get_neighbours(y,gridsize),5)
                         chance = np.random.random()
                         alpha = 1.5
-                        x = score * (1 + alpha * infection_percent)
-                        k = 10
-                        b = 0.3
+                        x = 0.6 * scoreA + 0.4 * score
+                        x = np.clip(x,0.0,1.0)
+                        k = 6
+                        b = 0.45 - 0.15 * infection_percent
                         sigmoid = 1 / (1 + np.exp(-k * (x - b)))
-                        P_aware = awarness_rate * sigmoid
+                        baseline_spont = 0.01
+                        raw = baseline_spont + (1 - baseline_spont) * sigmoid
+                        P_aware = np.clip(awarness_rate * raw,0.0,1.0)
                         if chance > P_aware:
                             grid[y[0], y[1]] = 1
+                            latent_period = np.random.randint(1, 4)
+                            infection_spread_delay_grid[y[0], y[1]] = latent_period
                         else:
                             was_ever_aware_grid[y[0], y[1]] = True
                             grid[y[0], y[1]] = 4
                     else:
                         grid[y[0], y[1]] = 1
+                        latent_period = np.random.randint(1, 4)
+                        infection_spread_delay_grid[y[0], y[1]] = latent_period
                 else:
                     if awarness_rate:
-                        chance = np.random.random()
+                        """chance = np.random.random()
                         if (
                                 awarness_efficacy
                                 and score * (1 - awarness_efficacy) > chance
@@ -372,8 +466,10 @@ def infect(
                             grid[y[0], y[1]] = 1
                         else:
                             pass
-                    else:
+                    else:"""
                         grid[y[0], y[1]] = 1
+                        latent_period = np.random.randint(1, 4)
+                        infection_spread_delay_grid[y[0], y[1]] = latent_period
 
 
 def recover(
@@ -406,6 +502,7 @@ def simulation(
         was_ever_aware_grid: np.ndarray,
         was_ever_quarantined: np.ndarray,
         quarantine_duration_grid: np.ndarray,
+        infection_spread_delay_grid: np.ndarray,
         infection_prob: float,
         recovery_mean: int,
         recovery_var: int,
@@ -441,7 +538,8 @@ def simulation(
     2 - Recovered
     3 - quarantined (immune)
     4 - Aware and susceptible
-    5 - Aware and Infected\n"""
+    5 - Aware and Infected
+    6 - Quarantined and Infected\n"""
         )
         print(f"Grid Size: {gridsize} x {gridsize}\n")
 
@@ -483,13 +581,14 @@ def simulation(
     while grid[grid == 1].size > 0:
         before_quarantined = quarantined
         grid_status_update(
-            grid, was_ever_aware_grid, quarantine_duration_grid, day,gridsize, awarness_rate
+            grid, was_ever_aware_grid, was_ever_quarantined, quarantine_duration_grid, day,gridsize, awarness_rate, quarantine_chance
         )
         infect(
             grid,
             was_ever_aware_grid,
             was_ever_quarantined,
             quarantine_duration_grid,
+            infection_spread_delay_grid,
             infection_prob,
             awarness_rate,
             quarantine_chance,
@@ -519,7 +618,8 @@ def simulation(
         i += 1
         day += 1
 
-    date_range = pd.date_range(start=date_now, freq="D", periods=day - 1)
+    total_recovered = grid[grid == 2].size
+    date_range = pd.date_range(start=date_now, freq="D", periods=day - 1, name = "Date")
     simulation_log["New_Infections"] = simulation_log["Infected"].diff().fillna(0)
     simulation_log.loc[simulation_log["New_Infections"] < 0, "New_Infections"] = 0
     simulation_log.index = date_range
@@ -601,7 +701,8 @@ def simulation(
         print("> Max Recovery Duration:", np.max(recovery_times))
         print()
         print(simulation_log)
-        simulation_log.to_csv("Sim_results.csv")
+        time_now = np.datetime64("now").astype(str).replace(":", "-").replace(" ","_")
+        simulation_log.to_csv(f"./Results/Sim_results-{time_now}.csv")
 
     if not print_:
         return total_infected
@@ -711,6 +812,7 @@ def main():
         was_ever_aware_grid,
         was_ever_quarantined,
         quarantine_duration_grid,
+        infection_spread_delay_grid,
     ) = make_grid(grid_size, init_infections)
 
     simulation(
@@ -719,6 +821,7 @@ def main():
         was_ever_aware_grid,
         was_ever_quarantined,
         quarantine_duration_grid,
+        infection_spread_delay_grid,
         infection_prob,
         recovery_mean,
         recovery_var,
