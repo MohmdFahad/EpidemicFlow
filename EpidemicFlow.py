@@ -39,8 +39,8 @@ def make_grid(
 
     quarantine_duration_grid = np.zeros((grid_size, grid_size), dtype=np.int_)
 
-    infection_spread_delay_grid = np.zeros_like(grid)
-    infection_spread_delay_grid[...] = -1
+    infection_day_grid = np.zeros_like(grid, dtype=np.int64)
+    infection_day_grid[...] = -1
 
     return (
         grid,
@@ -48,7 +48,7 @@ def make_grid(
         was_ever_aware,
         was_ever_quarantined,
         quarantine_duration_grid,
-        infection_spread_delay_grid,
+        infection_day_grid,
 
     )
 
@@ -63,7 +63,7 @@ def get_neighbours(x: np.ndarray, gridsize: int) -> np.ndarray:
     if x.shape == (0,):  # prevents generating neighbours invalid individual position
         return x
     neighbours = np.zeros((1, 2))
-    possible_neighbours = np.array([[1, 0], [0, 1], [-1, 0], [0, -1]])
+    possible_neighbours = np.array([[1, 0], [0, 1], [-1, 0], [0, -1],[1,1],[1,-1],[-1,1],[-1,-1]])
     neighbours = x + possible_neighbours
     mask1 = (neighbours[:, 0] < gridsize) & (
             neighbours[:, 1] < gridsize
@@ -102,16 +102,16 @@ def get_pos(grid: np.ndarray, label: int) -> np.ndarray:
     ):  # Makes positons a two dimensional array in case there was only one position identified
         positions = positions[np.newaxis, ...]
     elif positions.dtype == np.float64:  # For cases where no positons were found
-        positions = np.array([[]])
+        positions = np.array([])
     return positions
 
 
-# Used for updating the grid, in particular to update status of individuals who are in quarantine status and spread awarness among the individuals who are aware
+# Used for updating the grid, in particular to update status of individuals who are in quarantine status and spread awareness among the individuals who are aware
 # Input -
 #   grid - a N x N grid to update and check for neighbours and labels
 #   was_ever_aware_grid - a boolean two dimensional array capturing the state of every individual over the simulation
 #   gridsize - square root of the size of the grid (e.g. for a grid of shape 15 x 15, gridsize = 15)
-#   awarness_rate - the chance a susceptible indivdual can gain awarness from aware individuals | None - in case the model chosen in non behavioral
+#   awareness_rate - the chance a susceptible indivdual can gain awareness from aware individuals | None - in case the model chosen in non behavioral
 # Output -
 #   None
 def grid_status_update(
@@ -121,7 +121,7 @@ def grid_status_update(
         quarantine_duration_grid: np.ndarray,
         day: int,
         gridsize: int,
-        awarness_rate: float = None,
+        awareness_rate: float = None,
         quarantine_chance: float = None,
 ):
     quarantine_pos = get_pos(grid, 3)
@@ -183,69 +183,108 @@ def grid_status_update(
     N_total = gridsize * gridsize
     N_aware = was_ever_aware_grid.sum()
 
-    base_cycle = 7
+    infection_percent = (grid[grid == 1].size + grid[grid == 5].size + grid[grid == 6].size) / N_total
 
+    base_cycle = 4
     aplha = 1.5
+    min_cycle = 2
 
-    n = np.round(base_cycle * np.exp(-aplha * (N_aware/N_total)),2)
-    if n == 0:
-        n = 1
+    n_float = base_cycle * np.exp(-aplha* infection_percent)
 
-    # spread the awarness to susceptible neighbours of aware individuals
+    n = int(np.clip(np.round(n_float,1),min_cycle,base_cycle))
+
+    # spread the awareness to susceptible neighbours of aware individuals
     if day % n == 0:
         for position in positions:
             for neighbour in get_neighbours(position, gridsize):
-                spread_awarness(
-                    grid, was_ever_aware_grid, neighbour, gridsize, awarness_rate
+                spread_awareness(
+                grid, was_ever_aware_grid, neighbour, gridsize, awareness_rate
                 )
     """positions = get_pos(grid, 5)
     for position in positions:
         for neighbour in get_neighbours(position, gridsize):
-            spread_awarness(grid, was_ever_aware_grid, neighbour, gridsize, awarness_rate)"""
+            spread_awareness(grid, was_ever_aware_grid, neighbour, gridsize, awareness_rate)"""
 
 
 
-# Used to spread awarness to a position based on function parameters and individual spatiality
+# Used to spread awareness to a position based on function parameters and individual spatiality
 # Input -
 #   grid - a N x N grid to analyze individual spatiality
 #   was_ever_aware_grid - a boolean two dimensional array capturing the state of every individual over the simulation
-#   pos - a 1-dimensional array containg the position of the individual to spread awarness to
+#   pos - a 1-dimensional array containg the position of the individual to spread awareness to
 #   gridsize - square root of the size of the grid (e.g. for a grid of shape 15 x 15, gridsize = 15)
-#   awarness_rate - the chance a susceptible indivdual can gain awarness from aware individuals | None - in case the model chosen in non behavioral
+#   awareness_rate - the chance a susceptible indivdual can gain awareness from aware individuals | None - in case the model chosen in non behavioral
 # Output -
 #   None
-def spread_awarness(
+def spread_awareness(
         grid: np.ndarray,
         was_ever_aware_grid: np.ndarray,
         pos: np.ndarray,
         gridsize: int,
-        awarness_rate: float = None,
+        awareness_rate: float = None,
 ):
+    # global awareness
+    infection_percent = (grid[grid == 1].size + grid[grid == 5].size) / gridsize ** 2
+    awareness_percent = (grid[grid == 4].size + grid[grid == 5].size) / gridsize ** 2
+
+
+    global_awareness_sensitivity = 10
+    base_awareness_rate = 0.002 # minimum awareness rate
+    max_awareness_rate = 0.01 # maximum awareness rate
+    infection_sensitivity = 4.0 # steepness of the infection response curve
+    infection_inflection = 0.7 # where infection triggers strongest awareness response
+    awareness_sensitivity = 13.0 # how strongly high awareness slow new adoption
+    awareness_inflection = 0.1 # where slowdown starts
+
+    # Infection driven term
+    infection_term = 1 / (1+ np.exp(-infection_sensitivity * (infection_percent - infection_inflection)))
+    
+    # Awareness-driven term 
+    awareness_term = 1 / (1 + np.exp(-awareness_sensitivity * (awareness_percent - awareness_inflection)))
+
+
+    global_awareness_factor = base_awareness_rate + (max_awareness_rate - base_awareness_rate) * infection_term * awareness_term
+
+    tmp_grid = grid[grid == 0].copy()
+    reached = np.random.random(size=tmp_grid.shape) < 0.025
+
+    global_chance = np.random.random(size=tmp_grid.shape)
+
+    tmp_grid[(global_chance < global_awareness_factor) & reached] = 4
+
+    grid[grid == 0] = tmp_grid
+    was_ever_aware_grid[np.logical_and(grid == 4,was_ever_aware_grid == False)] = True
+
+    # local awareness
     # if the individual is susceptible
     if grid[pos[0], pos[1]] == 0 | grid[pos[0], pos[1]] == 1:
+        infection_percent = (grid[grid == 1].size + grid[grid == 5].size) / gridsize ** 2
         chance = np.random.random()  # produces a random chance
         score = get_score(
             grid, get_neighbours(pos, gridsize), 4
         ) + get_score(grid,get_neighbours(pos,gridsize),5)  # gets the percentage of aware neighbours
-        # Appling a sigmoid function for awarness probability
+        # Appling a sigmoid function for awareness probability
 
         # Steepness parameter
-        k_min = 1
-        k_max = 33
-        lda = 2
+        k_min = 1 # min steepness
+        k_max = 33 # max steepness
+        lda = 2 # steepness growth rate
         k = k_min + (k_max - k_min) * score ** lda  # steepness
 
-        # threshold parameter (awarness threshold)
-        b_max = 0.24
-        b_min = 0.74
-        lda = 1
+        # threshold parameter (awareness threshold)
+        b_max = 0.24 # min threshold
+        b_min = 0.74 # max threshold
+        lda = 1 # threshold decay rate
         b = b_min + (b_max - b_min) * np.exp(-lda * score)
 
+        alpha = 1.5
+        x = score + alpha * infection_percent
+
         # Sigmoid function
-        sigmoid = 1 / (1 + np.exp(-k * (score - b)))  # the probability
+        sigmoid = 1 / (1 + np.exp(-k * (x - b)))  # the probability
 
         if (
-                awarness_rate and chance < awarness_rate * sigmoid
+                awareness_rate and chance < awareness_rate * sigmoid
         ):  # If the indivdual falls in the chance of being aware
             if grid[pos[0], pos[1]] == 1:
                 grid[pos[0], pos[1]] = 5
@@ -254,10 +293,10 @@ def spread_awarness(
                 grid[pos[0], pos[1]] = 4
                 was_ever_aware_grid[pos[0], pos[1]] = True
             """neighbours = get_neighbours(pos, grid.shape[0])
-            # to spread awarness to the individuals neighbours
+            # to spread awareness to the individuals neighbours
             for neighbour in neighbours:
-                spread_awarness(
-                    grid, was_ever_aware_grid, neighbour, gridsize, awarness_rate
+                spread_awareness(
+                    grid, was_ever_aware_grid, neighbour, gridsize, awareness_rate
                 )"""
 
 
@@ -276,32 +315,32 @@ def get_score(grid: np.ndarray, neighbours: np.ndarray, x: int) -> float:
     neighbour_tag = grid[
         neighbours.T.astype(np.int_)[0], neighbours.T.astype(np.int_)[1]
     ]
-    # in case of 4 neighbours
-    if neighbour_tag.size == 4:
-        score = 0.25 * neighbour_tag[neighbour_tag == x].size
+    # in case of 8 neighbours
+    if neighbour_tag.size == 8:
+        score = 0.125 * neighbour_tag[neighbour_tag == x].size
+        return score
+
+    # in case of 5 neighbours
+    elif neighbour_tag.size == 3:
+        score = 0.2 * neighbour_tag[neighbour_tag == x].size
         return score
 
     # in case of 3 neighbours
-    elif neighbour_tag.size == 3:
-        score = 0.33333333333333335 * neighbour_tag[neighbour_tag == x].size
-        return score
-
-    # in case of 2 neighbours
     else:
-        score = 0.5 * neighbour_tag[neighbour_tag == x].size
+        score = 0.3333333333 * neighbour_tag[neighbour_tag == x].size
         return score
 
 
 # Used to infect new individuals around the grid who are amongst infected individuals with a probabiility of infection, and precautionary
-# parameters such as probability of awarness,quaritine and awarness efficacy
+# parameters such as probability of awareness,quaritine and awareness efficacy
 # Input -
 #   grid - a N x N grid to analyze individual spatiality
 #   was_ever_aware_grid - a grid to track every individual of whether they were ever aware
 #   was_ever_quarantined - a grid to track every individual of whether they ever quarantined
 #   infection_prob - the probability of a susceptible individual acquiring the disease around infected neighbours
-#   awarness_rate - the probability that an susceptible individual adopts protective measures
+#   awareness_rate - the probability that an susceptible individual adopts protective measures
 #   quarantine_chance - the probability that an individual quarantines when surrounded by infected individuals
-#   awarness_efficacy - the extent to which awareness reduces infection risk
+#   awareness_efficacy - the extent to which awareness reduces infection risk
 # Output -
 #   None
 def infect(
@@ -309,29 +348,39 @@ def infect(
         was_ever_aware_grid: np.ndarray,
         was_ever_quarantined: np.ndarray,
         quarantine_duration_grid: np.ndarray,
-        infection_spread_delay_grid: np.ndarray,
+        infection_day_grid: np.ndarray,
+        recovery_grid: np.ndarray,
+        day: int,
         infection_prob: float,
-        awarness_rate: float = None,
+        awareness_rate: float = None,
         quarantine_chance: float = None,
-        awarness_efficacy: float = None,
-):
+        awareness_efficacy: float = None,
+) -> int:
     infected_pos = get_pos(grid, 1)
     infected_aware_pos = get_pos(grid, 5)
-    if infected_aware_pos.size != 0:
+    if infected_aware_pos.size != 0 and infected_pos.size != 0:
         infected_pos = np.concat([infected_pos, infected_aware_pos], axis=0)
 
     recovered_pos = get_pos(grid, 2)
 
-    infection_spread_delay_grid[infection_spread_delay_grid > 0] -= 1
 
-    awarness_pos = get_pos(grid, 4)  # --
+    awareness_pos = get_pos(grid, 4)  # --
 
     gridsize = grid.shape[0]
 
-    for x in infected_pos:  # for each infected individual
+    sum = 0
 
-        if infection_spread_delay_grid[x[0], x[1]] > 0:
-            continue
+    infection_percent = (grid[grid == 1].size + grid[grid == 5].size) / gridsize ** 2
+
+    n_min, n_max = 1, 4
+    p0, a = 0.25, 8.0  # pivot at 25% infected; a = steepness
+    n_float = n_min + (n_max - n_min) / (1.0 + np.exp(a * (infection_percent - p0)))
+    n = max(1, int(round(n_float)))
+
+    if not (day % n == 0):
+        return sum
+
+    for x in infected_pos:  # for each infected individual
 
         neighbours = get_neighbours(x, gridsize)
 
@@ -364,16 +413,16 @@ def infect(
                 mask4 = neighbours[:, 1] != y[1]
                 neighbours = neighbours[np.logical_or(mask3, mask4)]
             chance_of_disease = np.random.random((aware_neighbours.size // 2,))
-            infection_prob_aware = infection_prob * (1 - awarness_efficacy)
+            infection_prob_aware = infection_prob * (1 - awareness_efficacy)
             if grid[x[0], x[1]] == 5:
-                infection_prob_aware = infection_prob_aware * 0.4
+                infection_prob_aware = infection_prob_aware * 0.3
             diseased = chance_of_disease < infection_prob_aware
             aware_diseased = aware_neighbours[diseased]
 
 
         chance_of_disease = np.random.random(( neighbours.size// 2,))
         if grid[x[0], x[1]] == 5:
-            reduced_prob = infection_prob * 0.4
+            reduced_prob = infection_prob * 0.3
             diseased = chance_of_disease < reduced_prob
         else:
             diseased = chance_of_disease < infection_prob
@@ -385,24 +434,30 @@ def infect(
         # for spreading the infection in grid
         for y in diseased:
             score = get_score(grid, get_neighbours(y, gridsize), 1)
-            infection_percent = grid[grid == 1].size / gridsize ** 2
+            infection_percent = (grid[grid == 1].size + grid[grid == 5].size) / gridsize ** 2
+
+            """n_min, n_max = 1, 8
+            n_float = n_min + (n_max - n_min) * infection_percent
+            n = np.max([1, int(round(n_float))])"""
 
             # When surrounded by fully infected individuals
             if score >= .5:
 
-                if awarness_rate:
-                    # if not already in quranatine status
+                if awareness_rate:
+                    # if not already in quarantine status
                     if not grid[y[0], y[1]] == 3:
                         chance = np.random.random()
                         if chance > quarantine_chance:  # infect the individual
                             if grid[y[0], y[1]] == 4:
                                 grid[y[0], y[1]] = 5
+                                sum+=1
                                 latent_period =  np.random.randint(1,4)
-                                infection_spread_delay_grid[y[0], y[1]] = latent_period
+                                infection_day_grid[y[0], y[1]] = day
                             else:
                                 grid[y[0], y[1]] = 1
+                                sum+=1
                                 latent_period = np.random.randint(1, 4)
-                                infection_spread_delay_grid[y[0], y[1]] = latent_period
+                                infection_day_grid[y[0], y[1]] = day
                         else:  # quarantine the individual
                             grid[y[0], y[1]] = 3
                             was_ever_quarantined[y[0], y[1]] = True
@@ -419,19 +474,21 @@ def infect(
                         )
                         if new_chance_infection > chance:
                             grid[y[0], y[1]] = 1
+                            sum+=1
                             latent_period = np.random.randint(1, 4)
-                            infection_spread_delay_grid[y[0], y[1]] = latent_period
+                            infection_day_grid[y[0], y[1]] = day
                         else:
                             continue
                 else:
                     # infect
                     grid[y[0], y[1]] = 1
+                    sum+=1
                     latent_period = np.random.randint(1, 4)
-                    infection_spread_delay_grid[y[0], y[1]] = latent_period
+                    infection_day_grid[y[0], y[1]] = day
             else:
                 #
                 if grid[y[0], y[1]] != 4:
-                    if awarness_rate:
+                    if awareness_rate:
                         scoreA = get_score(grid, get_neighbours(y, gridsize), 4) + get_score(grid,get_neighbours(y,gridsize),5)
                         chance = np.random.random()
                         alpha = 1.5
@@ -442,34 +499,39 @@ def infect(
                         sigmoid = 1 / (1 + np.exp(-k * (x - b)))
                         baseline_spont = 0.01
                         raw = baseline_spont + (1 - baseline_spont) * sigmoid
-                        P_aware = np.clip(awarness_rate * raw,0.0,1.0)
+                        P_aware = np.clip(awareness_rate * raw,0.0,1.0)
                         if chance > P_aware:
                             grid[y[0], y[1]] = 1
+                            sum+=1
                             latent_period = np.random.randint(1, 4)
-                            infection_spread_delay_grid[y[0], y[1]] = latent_period
+                            infection_day_grid[y[0], y[1]] = day
                         else:
                             was_ever_aware_grid[y[0], y[1]] = True
                             grid[y[0], y[1]] = 4
                     else:
                         grid[y[0], y[1]] = 1
+                        sum+=1
                         latent_period = np.random.randint(1, 4)
-                        infection_spread_delay_grid[y[0], y[1]] = latent_period
+                        infection_day_grid[y[0], y[1]] = day
                 else:
-                    if awarness_rate:
+                    if awareness_rate:
                         """chance = np.random.random()
                         if (
-                                awarness_efficacy
-                                and score * (1 - awarness_efficacy) > chance
+                                awareness_efficacy
+                                and score * (1 - awareness_efficacy) > chance
                         ):
                             grid[y[0], y[1]] = 1
-                        elif not awarness_efficacy:
+                        elif not awareness_efficacy:
                             grid[y[0], y[1]] = 1
                         else:
                             pass
                     else:"""
                         grid[y[0], y[1]] = 1
+                        sum+=1
                         latent_period = np.random.randint(1, 4)
-                        infection_spread_delay_grid[y[0], y[1]] = latent_period
+                        infection_day_grid[y[0], y[1]] = day
+    return sum
+
 
 
 def recover(
@@ -502,13 +564,13 @@ def simulation(
         was_ever_aware_grid: np.ndarray,
         was_ever_quarantined: np.ndarray,
         quarantine_duration_grid: np.ndarray,
-        infection_spread_delay_grid: np.ndarray,
+        infection_day_grid: np.ndarray,
         infection_prob: float,
         recovery_mean: int,
         recovery_var: int,
-        awarness_rate: float = None,
+        awareness_rate: float = None,
         quarantine_chance: float = None,
-        awarness_efficacy: float = None,
+        awareness_efficacy: float = None,
         print_: bool = True,
 ):
     total_infected = grid[grid == 1].size
@@ -516,7 +578,7 @@ def simulation(
     prev_peak_infection = total_infected
     peak_infection = total_infected
     peak_infection_day = 0
-    peak_awarness = grid[grid == 4].size
+    peak_awareness = grid[grid == 4].size
     gridsize = grid.shape[0]
     quarantined = 0
 
@@ -575,24 +637,26 @@ def simulation(
 
     date_now = np.datetime64("today")
     simulation_log = pd.DataFrame(
-        columns=["Day", "Susceptible", "Infected", "Recovered", "Aware"]
+        columns=["Day", "Susceptible", "Infected", "Recovered", "Aware","New_Infections"],dtype=np.int64
     )
 
     while grid[grid == 1].size > 0:
         before_quarantined = quarantined
         grid_status_update(
-            grid, was_ever_aware_grid, was_ever_quarantined, quarantine_duration_grid, day,gridsize, awarness_rate, quarantine_chance
+            grid, was_ever_aware_grid, was_ever_quarantined, quarantine_duration_grid, day,gridsize, awareness_rate, quarantine_chance
         )
-        infect(
+        new_infections = infect(
             grid,
             was_ever_aware_grid,
             was_ever_quarantined,
             quarantine_duration_grid,
-            infection_spread_delay_grid,
+            infection_day_grid,
+            recovery_grid,
+            day,
             infection_prob,
-            awarness_rate,
+            awareness_rate,
             quarantine_chance,
-            awarness_efficacy,
+            awareness_efficacy,
         )
         recovery_times = recover(
             day,
@@ -605,36 +669,39 @@ def simulation(
         after_quarantined = grid[grid == 3].size
         quarantined = max(after_quarantined - before_quarantined, quarantined)
         total_recovered = grid[grid == 2].size
-        total_infected = grid[grid == 1].size
-        total_susceptible = grid[grid == 0].size
-        total_aware = grid[grid == 4].size
+        total_infected = grid[grid == 1].size + grid[grid == 5].size
+        total_susceptible = grid[grid == 0].size + grid[grid == 3].size + grid[grid == 4].size
+        total_aware = grid[grid == 4].size + grid[grid == 5].size
         simulation_log.loc[day] = [
             day,
             total_susceptible,
             total_infected,
             total_recovered,
             total_aware,
+            new_infections,
         ]
         i += 1
         day += 1
+        for row in grid:
+            print(" " * 21, end="")
+            print(row)
+        print()
 
     total_recovered = grid[grid == 2].size
     date_range = pd.date_range(start=date_now, freq="D", periods=day - 1, name = "Date")
-    simulation_log["New_Infections"] = simulation_log["Infected"].diff().fillna(0)
-    simulation_log.loc[simulation_log["New_Infections"] < 0, "New_Infections"] = 0
     simulation_log.index = date_range
     peak_infection = simulation_log["Infected"].max()
     peak_infection_day = simulation_log.query("Infected == Infected.max()")["Day"].iloc[
         0
     ]
-    peak_awarness = simulation_log["Aware"].max()
+    peak_awareness = simulation_log["Aware"].max()
 
     never_infected = grid[grid == 0].size + grid[grid == 3].size + grid[grid == 4].size
     sum_recovery_duration = np.sum(recovery_times)
-    if awarness_efficacy:
+    if awareness_efficacy:
         total_ever_aware = np.sum(was_ever_aware_grid)
         total_grid = gridsize ** 2
-        average_awarness_efficacy = (total_ever_aware / total_grid) * awarness_efficacy
+        average_awareness_efficacy = (total_ever_aware / total_grid) * awareness_efficacy
         total_ever_quarantined = np.sum(was_ever_quarantined)
 
     if print_:
@@ -674,7 +741,7 @@ def simulation(
             sep="",
         )
 
-        simulation_no_awarness = None
+        simulation_no_awareness = None
 
         print("> Epidemic Duration:", day)
         print(
@@ -684,10 +751,10 @@ def simulation(
         print("> Total Recovered:", total_recovered)
         print("> Never Infected:", never_infected)
         print()
-        print("--- Behavior and Awarness ---")
+        print("--- Behavior and awareness ---")
         print("> Individuals who became aware:", total_ever_aware)
         print(
-            "> Average Awarness Efficacy:", np.round(average_awarness_efficacy * 100, 2)
+            "> Average awareness Efficacy:", np.round(average_awareness_efficacy * 100, 2)
         )
         print("> Individuals who quarantined:", total_ever_quarantined)
         print()
@@ -749,7 +816,7 @@ def main():
     )
     print()
     if behavioral == "y":
-        awarness_rate = (
+        awareness_rate = (
                 float(
                     input(
                         "\nEnter the *protective behavior response rate* (%):\n"
@@ -771,7 +838,7 @@ def main():
                 / 100
         )
         print()
-        awarness_efficacy = (
+        awareness_efficacy = (
                 float(
                     input(
                         "\nEnter the *awareness efficacy* (%):\n"
@@ -783,9 +850,9 @@ def main():
         )
         print()
     else:
-        awarness_rate = None
+        awareness_rate = None
         quarantine_chance = None
-        awarness_efficacy = None
+        awareness_efficacy = None
 
     grid_size = int(
         input(
@@ -812,7 +879,7 @@ def main():
         was_ever_aware_grid,
         was_ever_quarantined,
         quarantine_duration_grid,
-        infection_spread_delay_grid,
+        infection_day_grid,
     ) = make_grid(grid_size, init_infections)
 
     simulation(
@@ -821,13 +888,13 @@ def main():
         was_ever_aware_grid,
         was_ever_quarantined,
         quarantine_duration_grid,
-        infection_spread_delay_grid,
+        infection_day_grid,
         infection_prob,
         recovery_mean,
         recovery_var,
-        awarness_rate,
+        awareness_rate,
         quarantine_chance,
-        awarness_efficacy,
+        awareness_efficacy,
     )
 
 
