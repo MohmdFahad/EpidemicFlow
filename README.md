@@ -129,7 +129,7 @@ EpidemicFlow\
 │ └─ results\
 │ └─ initial_conditions\
 │
-└─ examples # Example simulation runners
+└─ examples # Example simulation runners\
 │ └─ example_scenario1.py\
 │ └─ example_scenario2.py\
 │ └─ example_scenario3.py\
