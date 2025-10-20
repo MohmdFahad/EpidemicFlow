@@ -118,7 +118,7 @@ All results will be logged automatically in /data/results/ as a .csv file and pr
 ## 🧱 Repository Structure
 
 EpidemicFlow\
-└── src # Core simulation code\
+└─ src # Core simulation code\
 │ └─ epidemicflow.py # Entry point\
 │ └─ simulation.py # Daily simulation loop\
 │ └─ infection.py # Infection and recovery dynamics\
@@ -135,7 +135,6 @@ EpidemicFlow\
 │ └─ example_scenario3.py\
 │ └─ results # results from example runs\
 │ └─ README.md # Brief usage instructions for examples\
-│ \
 │ \
 └─ docs # Documentation (model, parameters, results)\
 │ └─ model_description.md # Explains math, transitions, and logic\
