@@ -84,18 +84,18 @@ where:
 \> Peak Active Infections: 163 (on Day 24)\
 \> Total Infected: 717\
 \> Total Recovered: 717\
-\> Never Infected: 502\
+\> Never Infected: 502
 
 --- Behavior and awareness ---
 \> Individuals who became aware: 1109\
 \> Average awareness Efficacy: 31.69\
-\> Individuals who quarantined: 159\
+\> Individuals who quarantined: 159
 
 --- Recovery Time Statistics ---
 \> Mean Recovery Duration 7.58\
 \> Recovery Std Dev: 1.97\
 \> Min Recovery Duration: 3\
-\> Max Recovery Duration: 15\
+\> Max Recovery Duration: 15
 
 | Date       | Day | Susceptible | Infected | Recovered | Aware | New_Infections |
 |-------------|-----|--------------|-----------|------------|--------|----------------|
