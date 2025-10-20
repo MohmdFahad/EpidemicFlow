@@ -21,13 +21,17 @@ Developed entirely in **Python (NumPy & Pandas)**, it models how awareness, infe
 Each simulation step represents one **day**.  
 Individuals can transition between states based on probabilistic and behavioral conditions:
 
-| Label | Meaning | Transition Triggers |
-|--------|----------|--------------------|
-| `0` | Susceptible | Can become infected or aware |
-| `1` | Infected | Infects neighbors; recovers after γ-distributed days |
-| `4` | Aware | Reduced infection risk based on efficacy |
-| `5` | Quarantined | Limited contact; low infection risk |
-| `2` | Recovered | Immune thereafter |
+
+
+| Label | State | Description |
+|-------|--------|-------------|
+| **0** | Susceptible | Healthy individual who has not yet been infected or influenced by awareness. |
+| **1** | Infected | Currently infected and capable of transmitting the disease. |
+| **2** | Recovered | Has recovered and is immune for the remainder of the simulation. |
+| **3** | Susceptible and Quarantined | Healthy but self-isolating due to nearby infections; temporarily removed from exposure. |
+| **4** | Susceptible and Aware | Healthy but aware of the disease and practicing preventive behavior, lowering infection risk. |
+| **5** | Infected and Aware | Infected individual who is aware and thus less likely to infect others. |
+| **6** | Infected and Quarantined | Infected individual under quarantine, significantly reducing further transmission. |
 
 ---
 
@@ -35,39 +39,39 @@ Individuals can transition between states based on probabilistic and behavioral 
 
 #### 1. Infection Cycle
 The infection update frequency (`n_days`) follows a logistic decay:
-\[
-n = n_{min} + \frac{n_{max} - n_{min}}{1 + e^{a \cdot (I - p_0)}}
-\]
+
+**n** = n_min + (n_max - n_min) / (1 + exp(a * (I - p0)))
+
 - **\( I \)** = infection fraction  
 - **\( p_0 \)** = pivot where slowdown begins  
 - **\( a \)** = steepness of decay  
 
 #### 2. Awareness Cycle
 Awareness updates follow a similar adaptive curve:
-\[
-n_{aware} = n_{min} + \frac{n_{max} - n_{min}}{1 + e^{-a \cdot (A - p_0)}}
-\]
+
+**n** = n_min + (n_max - n_min) / (1 + exp(a * (I - p0)))
+
 - **\( A \)** = fraction of aware individuals  
 - Inverse mapping → awareness spreads faster early, slower when most are aware.  
 
 #### 3. Awareness Adoption Probability
 Each susceptible individual calculates awareness likelihood using:
-\[
-P_{aware} = P_{base} + (1 - P_{base}) \cdot \sigma(k(x - b))
-\]
+
+**P_aware** = P_base + (1 - P_base) * sigmoid(k * (x - b))
+
 where  
-- \( \sigma(z) = \frac{1}{1 + e^{-z}} \) is the sigmoid function  
-- \( x = \text{aware neighbor fraction} + \alpha \cdot \text{infection\_percent} \)  
-- \( k, b \) = dynamic steepness and threshold parameters  
+- **sigmoid(z)** = 1 / (1 + exp(-z))  
+- **x** = aware_neighbor_fraction + α * infection_percent
+- **k** and **b** → dynamic steepness and threshold parameters
 
 #### 4. Recovery Time
 Recovery time follows a **Gamma Distribution**:
-\[
-\text{days} \sim \Gamma(k, \theta)
-\]
-where  
-\( k = \frac{\text{mean}^2}{\text{variance}} \), \( \theta = \frac{\text{variance}}{\text{mean}} \)  
-ensuring realistic variation — most recover near the mean, with few long recoveries.
+
+days ~ **Gamma(k, θ)**
+where:
+-    **k** = (mean^2) / variance
+-    **θ** = variance / mean
+
 
 ---
 
