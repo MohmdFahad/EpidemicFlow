@@ -77,3 +77,114 @@ where:
 
 ## 📊 Example Simulation Output
 
+----------------> E P I D E M I C S I M U L A T I O N R E S U L T S <---------------
+
+Epidemic Duration: 79 days\
+Peak Active Infections: 253 (on Day 28)\
+Total Infected: 1112\
+Total Recovered: 1112\
+Never Infected: 111
+
+--- Behavior and Awareness ---
+
+Individuals who became aware: 826\
+Average Awareness Efficacy: 23.6\
+Individuals who quarantined: 469
+
+--- Recovery Time Statistics ---
+
+Mean Recovery Duration: 7.48 days\
+Recovery Std Dev: 1.97 days\
+Min Recovery Duration: 3 days\
+Max Recovery Duration: 15 days
+
+---
+
+## ▶️ How to Run
+
+Clone the repository and run the main simulation module:
+
+```bash
+git clone https://github.com/MohmdFahad/EpidemicFlow.git
+cd EpidemicFlow
+python -m src.epidemicflow
+```
+
+You’ll then be prompted to input the simulation parameters (infection probability, awareness efficacy, grid size, etc.).
+All results will be logged automatically in /data/results/ as a .csv file and printed to the console.
+
+---
+
+## 🧱 Repository Structure
+
+EpidemicFlow\
+└── src # Core simulation code\
+│ └─ epidemicflow.py # Entry point\
+│ └─ simulation.py # Daily simulation loop\
+│ └─ infection.py # Infection and recovery dynamics\
+│ └─ awareness.py # Awareness and behavioral modeling\
+│ └─ grid_utils.py # Grid setup and neighbor functions\
+│\
+└─ data # Simulation input/output\
+│ └─ results\
+│ └─ initial_conditions\
+│\
+└─ docs # Documentation (model, parameters, results)\
+│\
+└─ tests # Unit tests for core logic\
+│\
+└─ README.md\
+└─ requirements.txt
+
+---
+
+## 🧰 Requirements
+
+- Python 3.10+
+- NumPy
+- Pandas
+
+Install dependencies with:
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## 🧠 Applications
+
+EpidemicFlow can be used for:
+- Studying behavioral responses to disease spread.
+- Evaluating the effect of awareness campaigns on outbreak size.
+- Teaching epidemiological modeling and probabilistic simulations.
+- Comparing infection control measures such as quarantine vs. awareness.
+
+---
+
+## 🧾 License
+
+
+This project is licensed under the **Creative Commons Attribution–NonCommercial 4.0 International License (CC BY-NC 4.0)**.
+
+You are free to:
+- Share — copy and redistribute the material in any medium or format  
+- Adapt — remix, transform, and build upon the material  
+
+Under the following terms:
+- Attribution — you must give appropriate credit to the author.  
+- NonCommercial — you may not use the material for commercial purposes.
+
+Read the full licence text here: [https://creativecommons.org/licenses/by-nc/4.0/](https://creativecommons.org/licenses/by-nc/4.0/)
+
+---
+
+## 👤 Author
+
+**Mohamed Fahad**  
+Copyright © 2025  
+Licensed under the [CC BY-NC 4.0 License](./LICENSE)
+
+
+
+
