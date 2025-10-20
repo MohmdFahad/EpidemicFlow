@@ -134,8 +134,9 @@ EpidemicFlow\
 │ └─ example_scenario2.py\
 │ └─ example_scenario3.py\
 │ └─ results # results from example runs\
-│ └─ README.md # Brief usage instructions for examples\ 
-│\
+│ └─ README.md # Brief usage instructions for examples\
+│ \
+│ \
 └─ docs # Documentation (model, parameters, results)\
 │ └─ model_description.md # Explains math, transitions, and logic\
 │ └─ results_summary.md # Scenario results, plots, interpretation\
