@@ -13,7 +13,7 @@ import numpy as np
 #   infection_day_grid - a grid to track the day each individual got infected
 def make_grid(
     grid_size: int, init_infections: int
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 
     grid = np.zeros((grid_size, grid_size), dtype=np.int8)
 

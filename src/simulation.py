@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+import os
+from pathlib import Path
 
 from .infection import *
 from .awareness import *
@@ -20,6 +22,7 @@ from .grid_utils import *
 #   awareness_rate - the probability that an susceptible individual adopts protective measures | None - in case an awareness model is not used
 #   quarantine_chance - the probability that an individual quarantines  | None - in case an awareness model is not used
 #   awareness_efficacy - the extent to which awareness reduces infection risk | None - in case an awareness model is not used
+#   output_path - path to save the simulation log | Default - data/results/
 # Output -
 #   None
 def simulation(
@@ -35,6 +38,7 @@ def simulation(
     awareness_rate: float = None,
     quarantine_chance: float = None,
     awareness_efficacy: float = None,
+    output_path: str = "default",
 ):
 
     print(
@@ -258,9 +262,24 @@ def simulation(
     print()
     print(simulation_log)
 
+
+
+    # Compute project root relative to this file (src/)
+    ROOT_DIR = Path(__file__).resolve().parents[1]
+    RESULTS_DIR = ROOT_DIR / "data" / "results"
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+
     # to save the simulation log as a csv file
+
     time_now = np.datetime64("now").astype(str).replace(":", "-").replace(" ", "_")
-    simulation_log.to_csv(f"./Results/Sim_results-{time_now}.csv")
+    file_name = f"Sim_results-{time_now}.csv"
+    if output_path != "default":
+        output_path = Path(output_path)
+        output_path.mkdir(parents=True, exist_ok=True)
+        simulation_log.to_csv(output_path / file_name)
+    else:
+        simulation_log.to_csv(RESULTS_DIR / file_name)
+
 
 # Used for updating the grid, in particular to update status of individuals who are in quarantine status and spread awareness among the individuals who are aware
 # Input -
