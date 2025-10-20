@@ -134,7 +134,8 @@ EpidemicFlow\
 └─ tests # Unit tests for core logic\
 │\
 └─ README.md\
-└─ requirements.txt
+└─ requirements.txt\
+└─ envirnonment.yml
 
 ---
 
@@ -145,6 +146,16 @@ EpidemicFlow\
 - Pandas
 
 Install dependencies with:
+
+## Options 1: Using conda (recommended)
+
+```bash
+# Create and activate environment
+conda env create -f environment.yml
+conda activate epidemicflow
+```
+
+## Options 2: Using pip
 
 ```bash
 pip install -r requirements.txt
