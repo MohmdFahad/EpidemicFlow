@@ -142,7 +142,7 @@ EpidemicFlow\
 │\
 └─ README.md # Project overview, usage, and model explanation\
 └─ requirements.txt # pip dependencies (numpy, pandas)\
-└─ environment.yml # Conda environment file
+└─ environment.yml # Conda environment file\
 └─ .gitignore # Ignores venv, cache, and results
 
 ---
