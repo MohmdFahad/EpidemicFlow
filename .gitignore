@@ -13,7 +13,6 @@ venv/
 env/
 *.conda
 *.yaml
-*.yml
 
 # Jupyter notebooks checkpoints
 .ipynb_checkpoints/

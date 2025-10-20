@@ -1,0 +1,9 @@
+name: epidemicflow
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - numpy=2.2.5=py313hdcf7240_0
+  - pandas=2.2.3=py313hcf29cfe_0
+  - python=3.13.4=h2eb94d5_100_cp313
+prefix: /opt/miniconda3/envs/epidemicflow
