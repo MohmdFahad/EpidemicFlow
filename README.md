@@ -147,7 +147,7 @@ EpidemicFlow\
 
 Install dependencies with:
 
-## Options 1: Using conda (recommended)
+## Option 1: Using conda (recommended)
 
 ```bash
 # Create and activate environment
@@ -155,7 +155,7 @@ conda env create -f environment.yml
 conda activate epidemicflow
 ```
 
-## Options 2: Using pip
+## Option 2: Using pip
 
 ```bash
 pip install -r requirements.txt
