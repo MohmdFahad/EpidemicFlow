@@ -135,7 +135,7 @@ EpidemicFlow\
 │\
 └─ README.md\
 └─ requirements.txt\
-└─ envirnonment.yml
+└─ environment.yml
 
 ---
 
