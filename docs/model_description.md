@@ -27,7 +27,7 @@ Each cell in the grid represents one individual with an evolving health and beha
 
 ### 3.1 Grid and Neighbourhood
 - The population is represented as a **2D NumPy array** of shape `(N, N)`.
-- Each individual interacts only with its **four adjacent neighbours** (up, down, left, right).
+- Each individual interacts with its **eight neighbours** — the four orthogonal (up, down, left, right) and the four diagonal corners (up-left, up-right, down-left, down-right).
 - These local interactions drive both infection and awareness spread.
 
 ---
