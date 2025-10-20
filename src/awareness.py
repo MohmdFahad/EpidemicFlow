@@ -2,17 +2,19 @@ import numpy as np
 from .grid_utils import *
 
 
-def generate_awareness_day_cycle_parameters(infection_prob: float, awareness_rate: float):
+def generate_awareness_day_cycle_parameters(
+    infection_prob: float, awareness_rate: float
+):
 
     if infection_prob >= 0.8 and awareness_rate <= 0.3:
-        alpha = 4 # infection sensitivity
-        beta = 5 # awareness sensitivity
+        alpha = 4  # infection sensitivity
+        beta = 5  # awareness sensitivity
         min_cycle = 3
         max_cycle = 6
-    elif infection_prob >= 0.7 and awareness_rate <= 0.5: # current
-        alpha = 3 # 4
-        beta = 6 # 7 !9 >8 7
-        min_cycle = 3 # !5 4 >3
+    elif infection_prob >= 0.7 and awareness_rate <= 0.5:  # current
+        alpha = 3  # 4
+        beta = 6  # 7 !9 >8 7
+        min_cycle = 3  # !5 4 >3
         max_cycle = 6
         n_min = 3
         n_max = 7
@@ -30,12 +32,13 @@ def generate_awareness_day_cycle_parameters(infection_prob: float, awareness_rat
         min_cycle = 3
         max_cycle = 7
     else:
-        alpha = 6 # >7 >6 5 4
-        beta = 3 #4 >3 2 5
-        min_cycle = 4 # 2 >3 4
-        max_cycle = 7 # 8 7 6 7
+        alpha =  3# >9 >()8 >7 >6 5 4
+        beta = 1  # 4 >3 2 ()5
+        min_cycle = 1  # 2 >3 4 ()1
+        max_cycle = 4  # 8 7 6 ()7
 
     return alpha, beta, min_cycle, max_cycle
+
 
 # Used to spread awareness to a position based on function parameters and individual spatiality
 # Input -
@@ -64,8 +67,12 @@ def spread_awareness(
     base_awareness_rate = 0.002  # minimum awareness rate
     max_awareness_rate = 0.01  # maximum awareness rate
     infection_sensitivity = 6.0  # steepness of the infection response curve | 4
-    infection_inflection = 0.5  # where infection triggers strongest awareness response | 0.6 0.7
-    awareness_sensitivity = 13.0  # how strongly high awareness slow new adoption | 14 13
+    infection_inflection = (
+        0.5  # where infection triggers strongest awareness response | 0.6 0.7
+    )
+    awareness_sensitivity = (
+        13.0  # how strongly high awareness slow new adoption | 14 13
+    )
     awareness_inflection = 0.1  # where slowdown starts | 0.08 0.1
 
     # Infection driven term

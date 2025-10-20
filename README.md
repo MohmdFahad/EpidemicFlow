@@ -77,26 +77,42 @@ where:
 
 ## 📊 Example Simulation Output
 
-----------------> E P I D E M I C S I M U L A T I O N R E S U L T S <---------------
+----------------> E P I D E M I C  S I M U L A T I O N  R E S U L T S <---------------
 
-Epidemic Duration: 79 days\
-Peak Active Infections: 253 (on Day 28)\
-Total Infected: 1112\
-Total Recovered: 1112\
-Never Infected: 111
 
---- Behavior and Awareness ---
+\> Epidemic Duration: 97\
+\> Peak Active Infections: 163 (on Day 24)\
+\> Total Infected: 717\
+\> Total Recovered: 717\
+\> Never Infected: 502\
 
-Individuals who became aware: 826\
-Average Awareness Efficacy: 23.6\
-Individuals who quarantined: 469
+--- Behavior and awareness ---
+\> Individuals who became aware: 1109\
+\> Average awareness Efficacy: 31.69\
+\> Individuals who quarantined: 159\
 
 --- Recovery Time Statistics ---
+\> Mean Recovery Duration 7.58\
+\> Recovery Std Dev: 1.97\
+\> Min Recovery Duration: 3\
+\> Max Recovery Duration: 15\
 
-Mean Recovery Duration: 7.48 days\
-Recovery Std Dev: 1.97 days\
-Min Recovery Duration: 3 days\
-Max Recovery Duration: 15 days
+| Date       | Day | Susceptible | Infected | Recovered | Aware | New_Infections |
+|-------------|-----|--------------|-----------|------------|--------|----------------|
+| 2025-10-20  | 1   | 1219         | 6         | 0          | 0      | 0              |
+| 2025-10-21  | 2   | 1219         | 6         | 0          | 0      | 0              |
+| 2025-10-22  | 3   | 1219         | 6         | 0          | 0      | 0              |
+| 2025-10-23  | 4   | 1194         | 31        | 0          | 2      | 25             |
+| 2025-10-24  | 5   | 1194         | 31        | 0          | 5      | 0              |
+| ...         | ... | ...          | ...       | ...        | ...    | ...            |
+| 2026-01-19  | 92  | 502          | 12        | 711        | 498    | 7              |
+| 2026-01-20  | 93  | 502          | 11        | 712        | 497    | 0              |
+| 2026-01-21  | 94  | 502          | 9         | 714        | 495    | 0              |
+| 2026-01-22  | 95  | 502          | 7         | 716        | 494    | 0              |
+| 2026-01-23  | 96  | 502          | 6         | 717        | 500    | 0              |
+
+
+[96 rows x 6 columns]
 
 ---
 

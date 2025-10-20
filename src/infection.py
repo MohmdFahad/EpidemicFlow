@@ -1,18 +1,21 @@
 import numpy as np
 from .grid_utils import *
 
-def generate_infection_day_cycle_parameters(infection_prob: float,awareness_rate: float):
+
+def generate_infection_day_cycle_parameters(
+    infection_prob: float, awareness_rate: float
+):
 
     if infection_prob >= 0.8 and awareness_rate <= 0.3:
         n_min = 2
         n_max = 5
         p0 = 0.65
         a = 11.0
-    elif infection_prob >= 0.7 and awareness_rate <= 0.5: # current
-        n_min = 1 # 2 1
-        n_max = 6 # !6 7
-        p0 = 0.65 # >0.75 >0.85 >>0.90 !0.60 0.80
-        a = 13.0 # >11.0 10.0 !()13.0 9.0 11.0
+    elif infection_prob >= 0.7 and awareness_rate <= 0.5:  # current
+        n_min = 1  # 2 1
+        n_max = 6  # !6 7
+        p0 = 0.65  # >0.75 >0.85 >>0.90 !0.60 0.80
+        a = 13.0  # >11.0 10.0 !()13.0 9.0 11.0
     elif infection_prob <= 0.4 and awareness_rate >= 0.6:
         n_min = 4
         n_max = 8
@@ -24,12 +27,13 @@ def generate_infection_day_cycle_parameters(infection_prob: float,awareness_rate
         p0 = 0.5
         a = 10.5
     else:
-        n_min = 2 # !1 >2
-        n_max = 7 # >7 >6
-        p0 = 0.2 # >0.3 >0.2 0.4 0.7
-        a = 4 # >4 >5 !6 !7 9 !13 12 !10
+        n_min = 1  # !1 >2
+        n_max = 5 # >()7 >6
+        p0 = 0.7  # ()0.5 !0.3 >0.4 >0.3 >0.2 0.4 !0.7 >0.6
+        a = 2  # ()3 >()2 !3 >4 >5 !6 !7 9 !13 12 !10
 
-    return n_min, n_max, round(p0,2), round(a,2)
+    return n_min, n_max, round(p0, 2), round(a, 2)
+
 
 # Used to infect new individuals around the grid who are amongst infected individuals with a probability of infection, and precautionary
 # parameters such as probability of awareness,quarantine and awareness efficacy
@@ -68,7 +72,9 @@ def infect(
         grid[grid == 1].size + grid[grid == 5].size + grid[grid == 6].size
     ) / gridsize**2  # percentage of infected individuals in the grid
 
-    n_min, n_max , p0 , a = generate_infection_day_cycle_parameters(infection_prob=infection_prob, awareness_rate=awareness_rate)
+    n_min, n_max, p0, a = generate_infection_day_cycle_parameters(
+        infection_prob=infection_prob, awareness_rate=awareness_rate
+    )
     n_float = n_min + (n_max - n_min) / (1.0 + np.exp(a * (infection_percent - p0)))
     n = max(1, int(round(n_float)))
 
