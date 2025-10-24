@@ -9,13 +9,13 @@ def generate_infection_day_cycle_parameters(
     if infection_prob >= 0.8 and awareness_rate <= 0.3:
         n_min = 2
         n_max = 5
-        p0 = 0.65
-        a = 11.0
+        p0 = 0.65 # inflection point
+        a = 3.0 # steepness
     elif infection_prob >= 0.7 and awareness_rate <= 0.5:  # current
         n_min = 1  # 2 1
         n_max = 6  # !6 7
-        p0 = 0.65  # >0.75 >0.85 >>0.90 !0.60 0.80
-        a = 13.0  # >11.0 10.0 !()13.0 9.0 11.0
+        p0 = 0.4  # >0.7 >0.85 >>0.90 !0.60 0.80
+        a = 5  # >11.0 10.0 !()13.0 9.0 11.0
     elif infection_prob <= 0.4 and awareness_rate >= 0.6:
         n_min = 4
         n_max = 8

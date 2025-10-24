@@ -183,9 +183,7 @@ def simulation(
     ]  # day of peak infection
     peak_awareness = simulation_log["Aware"].max()  # peak number of aware individuals
 
-    never_infected = (
-        grid[grid == 0].size + grid[grid == 3].size + grid[grid == 4].size
-    )  # number of individuals who were never infected
+    never_infected = (gridsize ** 2) - total_recovered # number of individuals who were never infected
     sum_recovery_duration = np.sum(
         recovery_times
     )  # total recovery duration for all infected individuals
@@ -261,7 +259,6 @@ def simulation(
     print("> Max Recovery Duration:", np.max(recovery_times))
     print()
     print(simulation_log)
-
 
 
     # Compute project root relative to this file (src/)
@@ -403,10 +400,6 @@ def grid_status_update(
         grid[grid == 1].size + grid[grid == 5].size + grid[grid == 6].size
     ) / N_total  # percentage of infected individuals in the grid
 
-    alpha = 2  # Infection sensitivity | Higher -> lower the cycle |  6 maybe 5
-    beta = 9.0  # Awareness sensitivity | Higher -> higher the cycle | 2
-    min_cycle = 5  # Minimum number of days | 3
-    max_cycle = 6  # Maximum number of days | 6
 
     alpha,beta,min_cycle,max_cycle = generate_awareness_day_cycle_parameters(infection_prob=infection_prob, awareness_rate=awareness_rate)
 

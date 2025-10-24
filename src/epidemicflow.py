@@ -10,10 +10,6 @@ def main():
      recovered, peak infection count and Duration of the epidemic, all over time.\n"""
     )
     print(">> E P I D E M I C   S I M U L A T I O N   P A R A M E T E R S <<\n")
-    behavioral = input(
-        "Would you like the model to incorporate behavioral dynamics? (y/n): "
-    ).lower()
-    print()
     infection_prob = (
         float(
             input(
@@ -41,44 +37,40 @@ def main():
         )
     )
     print()
-    if behavioral == "y":
-        awareness_rate = (
-            float(
-                input(
-                    "\nEnter the *protective behavior response rate* (%):\n"
-                    "   The probability that an individual adopts protective measures.\n"
-                    "   Example: 65\n> "
-                )
+    awareness_rate = (
+        float(
+            input(
+                "\nEnter the *protective behavior response rate* (%):\n"
+                "   The probability that an individual adopts protective measures.\n"
+                "   Example: 65\n> "
             )
-            / 100
         )
-        print()
-        quarantine_chance = (
-            float(
-                input(
-                    "\nEnter the *quarantine probability* (%):\n"
-                    "   The likelihood that an individual quarantines when surrounded by infections.\n"
-                    "   Example: 90\n> "
-                )
+        / 100
+    )
+    print()
+    quarantine_chance = (
+        float(
+            input(
+                "\nEnter the *quarantine probability* (%):\n"
+                "   The likelihood that an individual quarantines when surrounded by infections.\n"
+                "   Example: 90\n> "
             )
-            / 100
         )
-        print()
-        awareness_efficacy = (
-            float(
-                input(
-                    "\nEnter the *awareness efficacy* (%):\n"
-                    "   The extent to which awareness reduces infection risk.\n"
-                    "   Example: 50\n> "
-                )
+        / 100
+    )
+    print()
+    awareness_efficacy = (
+        float(
+            input(
+                "\nEnter the *awareness efficacy* (%):\n"
+                "   The extent to which awareness reduces infection risk.\n"
+                "   Example: 50\n> "
             )
-            / 100
         )
-        print()
-    else:
-        awareness_rate = None
-        quarantine_chance = None
-        awareness_efficacy = None
+        / 100
+    )
+    print()
+
 
     grid_size = int(
         input(

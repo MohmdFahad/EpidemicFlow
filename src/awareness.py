@@ -13,13 +13,9 @@ def generate_awareness_day_cycle_parameters(
         max_cycle = 6
     elif infection_prob >= 0.7 and awareness_rate <= 0.5:  # current
         alpha = 3  # 4
-        beta = 6  # 7 !9 >8 7
-        min_cycle = 3  # !5 4 >3
-        max_cycle = 6
-        n_min = 3
-        n_max = 7
-        p0 = 0.6  # 0.7 0.7 0.6
-        a = 7.0  # 0.9 >8 !6 5 8
+        beta = 8 # 7 !9 >8 7
+        min_cycle = 2  # !5 4 >3
+        max_cycle = 7
     elif infection_prob <= 0.4 and awareness_rate >= 0.6:
         alpha = 3
         beta = 7
