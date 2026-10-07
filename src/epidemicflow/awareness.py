@@ -1,5 +1,5 @@
 import numpy as np
-from .grid_utils import *
+from .grid_utils import get_neighbours, get_score
 
 
 def generate_awareness_day_cycle_parameters(

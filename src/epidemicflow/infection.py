@@ -1,6 +1,5 @@
 import numpy as np
-from .grid_utils import *
-
+from .grid_utils import get_neighbours, get_pos, get_score
 
 def generate_infection_day_cycle_parameters(
     infection_prob: float, awareness_rate: float

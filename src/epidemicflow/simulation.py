@@ -1,11 +1,10 @@
 import numpy as np
 import pandas as pd
-import os
 from pathlib import Path
 
-from .infection import *
-from .awareness import *
-from .grid_utils import *
+from .awareness import generate_awareness_day_cycle_parameters, spread_awareness
+from .grid_utils import get_neighbours, get_pos, get_score
+from .infection import infect, recover
 
 
 # The main simulation function that runs the epidemic simulation over a grid for a number of days, updating the grid state each day based on infection, recovery, awareness spread, and quarantine dynamics

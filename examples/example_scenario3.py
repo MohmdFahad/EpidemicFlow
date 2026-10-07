@@ -1,5 +1,5 @@
-from src.epidemicflow import make_grid, simulation
-
+from epidemicflow.grid_utils import make_grid
+from epidemicflow.simulation import simulation
 
 def main():
     # Scenario 3 — Childhood Disease–like (e.g., measles)

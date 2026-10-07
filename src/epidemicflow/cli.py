@@ -1,4 +1,5 @@
-from .simulation import *
+from .grid_utils import make_grid
+from .simulation import simulation
 
 # The main function is used to run the epidemic simulation program, gather user inputs for simulation parameters, initialize the grid, and start the simulation process
 def main():
