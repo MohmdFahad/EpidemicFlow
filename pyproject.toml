@@ -13,3 +13,7 @@ epidemicflow = "epidemicflow.cli:main"   # creates the `epidemicflow` command
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
