@@ -81,14 +81,7 @@ def infect(
     if not (day % n == 0):  # to control infection cycle
         return 0  # no new infections this day
 
-    infected_pos = get_pos(grid, 1)  # get positions of infected unaware individuals
-    infected_aware_pos = get_pos(grid, 5)  # get positions of infected aware individuals
-    if (
-        infected_aware_pos.size != 0 and infected_pos.size != 0
-    ):  # combine the two arrays if both have values
-        infected_pos = np.concat([infected_pos, infected_aware_pos], axis=0)
-
-    recovered_pos = get_pos(grid, 2)  # get positions of recovered individuals
+    infected_pos = get_pos(grid, 1, 5)  # positions of everyone who can spread: infected (1) and aware infected (5)
 
     sum = 0  # to count new infections
 
@@ -100,25 +93,11 @@ def infect(
 
         aware_diseased = np.array([])  # to store aware neighbours who get infected
 
-        aware_neighbours = np.array([])  # to store aware neighbours
-
-        for neighbour in neighbours:  # to get aware neighbours
-            if grid[neighbour[0], neighbour[1]] == 4:  # aware and susceptible
-                if aware_neighbours.size == 0:
-                    aware_neighbours = np.array([neighbour])
-                else:
-                    aware_neighbours = np.vstack([aware_neighbours, neighbour])
-
-        # Filter out neighbours who are not susceptible
-        for y in infected_pos:  # filter out infected neighbours
-            mask3 = neighbours[:, 0] != y[0]
-            mask4 = neighbours[:, 1] != y[1]
-            neighbours = neighbours[np.logical_or(mask3, mask4)]
-        if recovered_pos.size != 0:  # filter out recovered neighbours
-            for y in recovered_pos:
-                mask3 = neighbours[:, 0] != y[0]
-                mask4 = neighbours[:, 1] != y[1]
-                neighbours = neighbours[np.logical_or(mask3, mask4)]
+        states = grid[neighbours[:, 0], neighbours[:, 1]]  # the neighbours' states right now
+        aware_neighbours = neighbours[states == 4]  # aware and susceptible neighbours
+        neighbours = neighbours[
+            np.isin(states, (0, 3))
+        ]  # unaware susceptible neighbours (including quarantined); infected and recovered people are skipped
 
         # TODO think about this one
         """recovery_time = (recovery_grid[x[0], x[1]] - infection_day_grid[x[0], x[1]])
@@ -130,11 +109,6 @@ def infect(
         infection_prob = infection_prob * decay_factor"""
 
         if aware_neighbours.size != 0:  # if there are aware neighbours
-            # filter out aware neighbours from the main neighbours array
-            for y in aware_neighbours:
-                mask3 = neighbours[:, 0] != y[0]
-                mask4 = neighbours[:, 1] != y[1]
-                neighbours = neighbours[np.logical_or(mask3, mask4)]
 
             chance_of_disease = rng.random(
                 (aware_neighbours.size // 2,)
@@ -176,9 +150,15 @@ def infect(
 
         # for spreading the infection in grid
         for y in diseased:
+            if grid[y[0], y[1]] == 3:  # quarantined: quarantine removes 90% of the infection risk
+                if rng.random() < 0.1:
+                    grid[y[0], y[1]] = 6  # infected, but stays in quarantine
+                    sum += 1  # increment new infections count
+                    infection_day_grid[y[0], y[1]] = day  # set the infection day
+                continue  # nothing else happens to a quarantined individual
             score = get_score(
-                grid, get_neighbours(y, gridsize), 1
-            )  # get the percentage of infected neighbours
+                grid, get_neighbours(y, gridsize), 1, 5
+            )  # get the percentage of infected neighbours (unaware or aware)
             infection_percent = (
                 grid[grid == 1].size + grid[grid == 5].size
             ) / gridsize**2  # percentage of infected individuals in the grid
@@ -301,7 +281,7 @@ def infect(
                         infection_day_grid[y[0], y[1]] = day  # set the infection day
                 else:  # if the individual is already aware
                     if awareness_rate:  # if awareness model is active
-                        grid[y[0], y[1]] = 1  # infect the individual
+                        grid[y[0], y[1]] = 5  # infect the individual, who stays aware
                         sum += 1  # increment new infections count
                         infection_day_grid[y[0], y[1]] = day  # set the infection day
     return sum  # return the number of new infections
@@ -329,14 +309,14 @@ def recover(
 
     k = recovery_mean**2 / recovery_var  # shape parameter for gamma distribution
     theta = recovery_var / recovery_mean  # scale parameter for gamma distribution
-    infected = (grid == 1) & (recovery_grid == -1) | (grid == 5) & (
-        recovery_grid == -1
-    )  # identify newly infected individuals without assigned recovery days
-    random_recovery_days = np.round(
-        rng.gamma(shape=k, scale=theta, size=recovery_grid[infected].shape), 2
+    infected = np.isin(grid, (1, 5, 6)) & (
+            recovery_grid == -1
+    )  # identify infected individuals (unaware, aware or quarantined) without an assigned recovery day
+    random_recovery_days = np.maximum(
+        1, np.rint(rng.gamma(shape=k, scale=theta, size=recovery_grid[infected].shape))
     ).astype(
         np.int64
-    )  # generate random recovery days from gamma distribution
+    )  # random recovery days from the gamma distribution, rounded to whole days, at least 1
     if recovery_times.size == 0:
         recovery_times = random_recovery_days  # initialize recovery_times if empty
     else:

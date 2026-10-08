@@ -66,6 +66,7 @@ def make_grid(
     infection_day_grid[...] = (
         -1
     )  # -1 used to indicate recovered / never infected individuals
+    infection_day_grid[grid == 1] = 0  # the initial cases were infected on day 0
 
     return (
         grid,
@@ -123,28 +124,14 @@ def get_pos(grid: np.ndarray, *labels: int) -> np.ndarray:
 # Input -
 #   grid - an N x N grid to analyze individual spatiality
 #   neighbours - a 2 dim array of positions of neighbours
-#   x - the label to obtain a percentage of
+#   labels - one or more labels to obtain a percentage of
 # Output -
 #   score - the percentage of that label among the passed neighbours
-def get_score(grid: np.ndarray, neighbours: np.ndarray, x: int) -> float:
+def get_score(grid: np.ndarray, neighbours: np.ndarray, *labels: int) -> float:
     # in case of there not existing any neighbours
-    if neighbours.shape == (0,):
-        return -1
+    if len(neighbours) == 0:
+        return 0.0
     # to get the neighbours tag
-    neighbour_tag = grid[
-        neighbours.T.astype(np.int_)[0], neighbours.T.astype(np.int_)[1]
-    ]
-    # in case of 8 neighbours
-    if neighbour_tag.size == 8:
-        score = 0.125 * neighbour_tag[neighbour_tag == x].size
-        return score
-
-    # in case of 5 neighbours
-    elif neighbour_tag.size == 3:
-        score = 0.2 * neighbour_tag[neighbour_tag == x].size
-        return score
-
-    # in case of 3 neighbours
-    else:
-        score = 0.3333333333 * neighbour_tag[neighbour_tag == x].size
-        return score
+    neighbour_tag = grid[neighbours[:, 0].astype(np.int_), neighbours[:, 1].astype(np.int_)]
+    # fraction of neighbours whose tag is one of the labels: correct for 8 (inside), 5 (edge) or 3 (corner) neighbours
+    return float(np.isin(neighbour_tag, labels).mean())

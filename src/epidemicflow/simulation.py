@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 
-from .awareness import generate_awareness_day_cycle_parameters, spread_awareness
+from .awareness import generate_awareness_day_cycle_parameters, global_awareness, spread_awareness
 from .grid_utils import get_neighbours, get_pos, get_score
 from .infection import infect, recover
 
@@ -109,7 +109,7 @@ def simulation(
     )
 
     # to run the simulation while there are still infected individuals
-    while grid[grid == 1].size > 0:
+    while np.isin(grid, (1, 5, 6)).any():  # while anyone is infected (unaware, aware or quarantined)
         grid_status_update(
             grid,
             was_ever_aware_grid,
@@ -188,7 +188,11 @@ def simulation(
     ]  # day of peak infection
     peak_awareness = simulation_log["Aware"].max()  # peak number of aware individuals
 
-    never_infected = (gridsize ** 2) - total_recovered # number of individuals who were never infected
+    total_ever_infected = np.sum(
+        infection_day_grid != -1
+    )  # everyone who was ever infected has an infection day
+    never_infected = (gridsize ** 2) - total_ever_infected  # number of individuals who were never infected
+
     sum_recovery_duration = np.sum(
         recovery_times
     )  # total recovery duration for all infected individuals
@@ -240,9 +244,9 @@ def simulation(
         sep="",
     )
 
-    print("> Epidemic Duration:", day)
+    print("> Epidemic Duration:", len(simulation_log))
     print(f"> Peak Active Infections: {peak_infection} (on Day {peak_infection_day})")
-    print("> Total Infected:", total_recovered)
+    print("> Total Infected:", total_ever_infected)
     print("> Total Recovered:", total_recovered)
     print("> Never Infected:", never_infected)
     print()
@@ -335,20 +339,14 @@ def grid_status_update(
                 pos[0].astype(np.int_), pos[1].astype(np.int_)
             ] -= 1  # decrease the quarantine duration by 1 day
 
-    infected_pos = get_pos(grid, 1)  # get positions of infected unaware individuals
-    infected_aware_pos = get_pos(grid, 5)  # get positions of infected aware individuals
-
-    if (
-        infected_aware_pos.size != 0 and infected_pos.size != 0
-    ):  # combine the two arrays if both have values
-        infected_pos = np.vstack([infected_pos, infected_aware_pos])
+    infected_pos = get_pos(grid, 1, 5)  # positions of infected (1) and aware infected (5) individuals
 
     # to make infected individuals quarantine if surrounded by infected individuals
     for pos in infected_pos:
 
         score = get_score(
-            grid, get_neighbours(pos, gridsize), 1
-        )  # get the percentage of infected neighbours
+            grid, get_neighbours(pos, gridsize), 1, 5
+        )  # get the percentage of infected neighbours (unaware or aware)
         if score >= 0.5:  # if over half the neighbours are infected
             chance = rng.random()
             if (
@@ -368,36 +366,31 @@ def grid_status_update(
                 was_ever_quarantined[pos[0].astype(np.int_), pos[1].astype(np.int_)] = (
                     True  # update the individual to having been quarantined
                 )
-
-        infected_quarantined_pos = get_pos(
-            grid, 6
-        )  # get positions of infected quarantined individuals
-        for pos in infected_quarantined_pos:  # for each infected quarantined individual
-            if pos.size == 0:
-                continue
-            if (
-                quarantine_duration_grid[pos[0].astype(np.int_), pos[1].astype(np.int_)]
-                == 0
-            ):  # if quarantine is over
-                grid[pos[0].astype(np.int_), pos[1].astype(np.int_)] = (
-                    5  # make the individual aware and infected
-                )
-                was_ever_aware_grid[pos[0].astype(np.int_), pos[1].astype(np.int_)] = (
-                    True  # update the individual to having been aware
-                )
-            else:
-                quarantine_duration_grid[
-                    pos[0].astype(np.int_), pos[1].astype(np.int_)
-                ] -= 1  # decrease the quarantine duration by 1 day
+    # count down quarantine for infected quarantined individuals: once per day.
+    infected_quarantined_pos = get_pos(
+        grid, 6
+    )  # get positions of infected quarantined individuals
+    for pos in infected_quarantined_pos:  # for each infected quarantined individual
+        if pos.size == 0:
+            continue
+        if (
+            quarantine_duration_grid[pos[0].astype(np.int_), pos[1].astype(np.int_)]
+            == 0
+        ):  # if quarantine is over
+            grid[pos[0].astype(np.int_), pos[1].astype(np.int_)] = (
+                5  # make the individual aware and infected
+            )
+            was_ever_aware_grid[pos[0].astype(np.int_), pos[1].astype(np.int_)] = (
+                True  # update the individual to having been aware
+            )
+        else:
+            quarantine_duration_grid[
+                pos[0].astype(np.int_), pos[1].astype(np.int_)
+            ] -= 1  # decrease the quarantine duration by 1 day
 
     # Awareness updates
 
-    positions = get_pos(grid, 4)  # get positions of aware susceptible individuals
-    positions2 = get_pos(grid, 5)  # get positions of aware infected individuals
-    if (
-        positions.size != 0 and positions2.size != 0
-    ):  # combine the two arrays if both have values
-        positions = np.vstack([positions, get_pos(grid, 5)])
+    positions = get_pos(grid, 4, 5)  # positions of aware susceptible (4) and aware infected (5) individuals
 
     N_total = gridsize * gridsize  # total number of individuals in the grid
 
@@ -426,6 +419,7 @@ def grid_status_update(
 
     # spread the awareness to susceptible neighbours of aware individuals
     if day % n == 0:
+        global_awareness(grid, was_ever_aware_grid, gridsize, rng=rng)  # awareness campaigns: once per event
         for position in positions:
             for neighbour in get_neighbours(position, gridsize):
                 spread_awareness(
