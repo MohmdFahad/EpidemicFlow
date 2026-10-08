@@ -7,6 +7,7 @@ from .grid_utils import get_neighbours, get_pos, get_score
 from .infection import infect, recover
 
 
+
 # The main simulation function that runs the epidemic simulation over a grid for a number of days, updating the grid state each day based on infection, recovery, awareness spread, and quarantine dynamics
 # Input -
 #   grid - an N x N grid to analyze individual spatiality
@@ -261,7 +262,7 @@ def simulation(
 
 
     # Compute project root relative to this file (src/)
-    ROOT_DIR = Path(__file__).resolve().parents[1]
+    ROOT_DIR = Path(__file__).resolve().parents[2]
     RESULTS_DIR = ROOT_DIR / "data" / "results"
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 

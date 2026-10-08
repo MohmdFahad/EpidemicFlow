@@ -1,4 +1,23 @@
 import numpy as np
+from dataclasses import dataclass
+
+SUSCEPTIBLE, INFECTED, RECOVERED = 0, 1, 2
+SUSCEPTIBLE_QUARANTINED, SUSCEPTIBLE_AWARE = 3, 4
+INFECTED_AWARE, INFECTED_QUARANTINED = 5, 6
+
+INFECTED_STATES    = (INFECTED, INFECTED_AWARE, INFECTED_QUARANTINED)
+SPREADER_STATES    = (INFECTED, INFECTED_AWARE)          # quarantined people don't spread
+SUSCEPTIBLE_STATES = (SUSCEPTIBLE, SUSCEPTIBLE_QUARANTINED, SUSCEPTIBLE_AWARE)
+AWARE_STATES       = (SUSCEPTIBLE_AWARE, INFECTED_AWARE)
+
+@dataclass
+class Population:
+    grid: np.ndarray
+    recovery_grid: np.ndarray
+    was_ever_aware: np.ndarray
+    was_ever_quarantined: np.ndarray
+    quarantine_duration_grid: np.ndarray
+    infection_day_grid: np.ndarray
 
 # Generates the grids required for the simulation
 # Input -
