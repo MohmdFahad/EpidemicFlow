@@ -1,225 +1,90 @@
-# 🦠 EpidemicFlow: Behavioral Epidemic Simulation in Python
+# EpidemicFlow
 
-**EpidemicFlow** is a grid-based epidemic simulation framework that integrates **infection dynamics**, **behavioral awareness**, and **quarantine mechanisms** to study how individual behavior affects disease spread.  
-Developed entirely in **Python (NumPy & Pandas)**, it models how awareness, infection probability, and recovery variability interact to produce realistic epidemic trends.
+**A behavioural, agent-based epidemic simulator in Python.** Each cell of an N×N grid is one person who moves between seven health and behaviour states. Infection spreads through local contact, and people can become aware (lowering their risk) or quarantine, so behaviour and disease feed back on each other.
 
----
+![Influenza-like scenario: median and 5–95% range over 30 runs](docs/images/influenza.png)
 
-## 🚀 Features
+[![tests](https://github.com/MohmdFahad/EpidemicFlow/actions/workflows/tests.yml/badge.svg)](https://github.com/MohmdFahad/EpidemicFlow/actions/workflows/tests.yml)
 
-- 🧬 **Grid-based population model:** each cell represents an individual with a state (Susceptible, Infected, Aware, Quarantined, Recovered).  
-- 📈 **Probabilistic infection spread:** neighbor-based infection propagation using tuned logistic cycles.  
-- 🧠 **Behavioral modeling:** awareness spread follows a **sigmoid adoption probability**, dynamically influenced by infection levels and awareness saturation.  
-- 🧮 **Gamma-distributed recovery:** realistic variability in recovery time (shape and scale derived from user input).  
-- 🔄 **Awareness & infection cycles:** adaptive logistic timing mechanisms control how frequently infection and awareness spread.  
-- 📊 **Automatic metric tracking:** uses Pandas to log daily infection counts, awareness levels, and recovery statistics.  
-
----
-
-## 🧩 Model Overview
-
-Each simulation step represents one **day**.  
-Individuals can transition between states based on probabilistic and behavioral conditions:
-
-
-
-| Label | State | Description |
-|-------|--------|-------------|
-| **0** | Susceptible | Healthy individual who has not yet been infected or influenced by awareness. |
-| **1** | Infected | Currently infected and capable of transmitting the disease. |
-| **2** | Recovered | Has recovered and is immune for the remainder of the simulation. |
-| **3** | Susceptible and Quarantined | Healthy but self-isolating due to nearby infections; temporarily removed from exposure. |
-| **4** | Susceptible and Aware | Healthy but aware of the disease and practicing preventive behavior, lowering infection risk. |
-| **5** | Infected and Aware | Infected individual who is aware and thus less likely to infect others. |
-| **6** | Infected and Quarantined | Infected individual under quarantine, significantly reducing further transmission. |
-
----
-
-### ⚙️ Core Mathematical Components
-
-#### 1. Infection Cycle
-The infection update frequency (`n_days`) follows a logistic decay:
-
-**n** = n_min + (n_max - n_min) / (1 + exp(a * (I - p0)))
-
-- **\( I \)** = infection fraction  
-- **\( p_0 \)** = pivot where slowdown begins  
-- **\( a \)** = steepness of decay  
-
-#### 2. Awareness Cycle
-Awareness updates follow a similar adaptive curve:
-
-**n** = n_min + (n_max - n_min) / (1 + exp(a * (I - p0)))
-
-- **\( A \)** = fraction of aware individuals  
-- Inverse mapping → awareness spreads faster early, slower when most are aware.  
-
-#### 3. Awareness Adoption Probability
-Each susceptible individual calculates awareness likelihood using:
-
-**P_aware** = P_base + (1 - P_base) * sigmoid(k * (x - b))
-
-where  
-- **sigmoid(z)** = 1 / (1 + exp(-z))  
-- **x** = aware_neighbor_fraction + α * infection_percent
-- **k** and **b** → dynamic steepness and threshold parameters
-
-#### 4. Recovery Time
-Recovery time follows a **Gamma Distribution**:
-
-days ~ **Gamma(k, θ)**
-where:
--    **k** = (mean^2) / variance
--    **θ** = variance / mean
-
-
----
-
-## 📊 Example Simulation Output
-
-----------------> E P I D E M I C  S I M U L A T I O N  R E S U L T S <---------------
-
-
-\> Epidemic Duration: 97\
-\> Peak Active Infections: 163 (on Day 24)\
-\> Total Infected: 717\
-\> Total Recovered: 717\
-\> Never Infected: 502
-
---- Behavior and awareness ---
-\> Individuals who became aware: 1109\
-\> Average awareness Efficacy: 31.69\
-\> Individuals who quarantined: 159
-
---- Recovery Time Statistics ---
-\> Mean Recovery Duration 7.58\
-\> Recovery Std Dev: 1.97\
-\> Min Recovery Duration: 3\
-\> Max Recovery Duration: 15
-
-| Date       | Day | Susceptible | Infected | Recovered | Aware | New_Infections |
-|-------------|-----|--------------|-----------|------------|--------|----------------|
-| 2025-10-20  | 1   | 1219         | 6         | 0          | 0      | 0              |
-| 2025-10-21  | 2   | 1219         | 6         | 0          | 0      | 0              |
-| 2025-10-22  | 3   | 1219         | 6         | 0          | 0      | 0              |
-| 2025-10-23  | 4   | 1194         | 31        | 0          | 2      | 25             |
-| 2025-10-24  | 5   | 1194         | 31        | 0          | 5      | 0              |
-| ...         | ... | ...          | ...       | ...        | ...    | ...            |
-| 2026-01-19  | 92  | 502          | 12        | 711        | 498    | 7              |
-| 2026-01-20  | 93  | 502          | 11        | 712        | 497    | 0              |
-| 2026-01-21  | 94  | 502          | 9         | 714        | 495    | 0              |
-| 2026-01-22  | 95  | 502          | 7         | 716        | 494    | 0              |
-| 2026-01-23  | 96  | 502          | 6         | 717        | 500    | 0              |
-
-
-[96 rows x 6 columns]
-
----
-
-## ▶️ How to Run
-
-Clone the repository and run the main simulation module:
+## Quick start
 
 ```bash
 git clone https://github.com/MohmdFahad/EpidemicFlow.git
 cd EpidemicFlow
-python -m src.epidemicflow
+pip install -e ".[plot]"
+
+epidemicflow --scenario influenza --seed 1             # one reproducible run
+epidemicflow --scenario covid --runs 30 --plot covid.png  # 30 runs: mean, spread and a plot
+epidemicflow --help                                    # every parameter can be overridden
 ```
 
-You’ll then be prompted to input the simulation parameters (infection probability, awareness efficacy, grid size, etc.).
-All results will be logged automatically in /data/results/ as a .csv file and printed to the console.
+Or from Python:
 
----
+```python
+from epidemicflow import SCENARIOS, run_simulation, format_summary
 
-## 🧱 Repository Structure
+result = run_simulation(SCENARIOS["measles"], seed=42)
+print(format_summary(result))
+result.log          # pandas DataFrame, one row per day
+```
 
-EpidemicFlow\
-└─ src # Core simulation code\
-│ └─ epidemicflow.py # Entry point\
-│ └─ simulation.py # Daily simulation loop\
-│ └─ infection.py # Infection and recovery dynamics\
-│ └─ awareness.py # Awareness and behavioral modeling\
-│ └─ grid_utils.py # Grid setup and neighbor functions\
-│\
-└─ data # Simulation input/output\
-│ └─ results\
-│ └─ initial_conditions\
-│
-└─ examples # Example simulation runners\
-│ └─ example_scenario1.py\
-│ └─ example_scenario2.py\
-│ └─ example_scenario3.py\
-│ └─ results # results from example runs\
-│ └─ README.md # Brief usage instructions for examples\
-│ \
-└─ docs # Documentation (model, parameters, results)\
-│ └─ model_description.md # Explains math, transitions, and logic\
-│ └─ results_summary.md # Scenario results, plots, interpretation\
-│\
-└─ README.md # Project overview, usage, and model explanation\
-└─ requirements.txt # pip dependencies (numpy, pandas)\
-└─ environment.yml # Conda environment file\
-└─ .gitignore # Ignores venv, cache, and results
+## The model
 
----
+| State | Meaning |
+|---|---|
+| 0 Susceptible | healthy, unaware |
+| 1 Infected | infected and spreading |
+| 2 Recovered | immune for the rest of the run |
+| 3 Susceptible, quarantined | isolating; 90% lower infection risk |
+| 4 Susceptible, aware | protective behaviour; risk reduced by `awareness_efficacy` |
+| 5 Infected, aware | spreads at 30% of the normal rate |
+| 6 Infected, quarantined | does not spread |
 
-## 🧰 Requirements
+Each day: quarantines count down, infected people surrounded by infection may quarantine, awareness spreads (locally through neighbours and globally through campaigns), infection spreads to the 8 neighbouring cells, and people recover.
 
-- Python 3.10+
-- NumPy
-- Pandas
+- **Awareness adoption** is a sigmoid of the share of aware neighbours and the infection level.
+- **Recovery time** is Gamma-distributed with the chosen mean and variance.
+- **Spread timing** – infection and awareness spread in events every *n* days, where *n* adapts to current infection and awareness levels.
 
-Install dependencies with:
+Full equations: [docs/model_description.md](docs/model_description.md).
 
-## Option 1: Using conda (recommended)
+## Results (30 runs per scenario)
+
+| Scenario | Total infected (attack rate) | Peak active infections | Peak day | Duration (days) |
+|---|---|---|---|---|
+| Influenza-like (35×35) | 42% ± 5% | 150 ± 19 | 21 ± 3 | 99 ± 21 |
+| COVID-like (40×40) | 86% ± 4% | 389 ± 72 | 30 ± 5 | 138 ± 31 |
+| Measles-like (30×30) | 94% ± 1% | 307 ± 34 | 19 ± 2 | 93 ± 23 |
+
+Mean ± standard deviation across seeds 0–29. Parameters for each scenario are in [`params.py`](src/epidemicflow/params.py); details in [docs/results_summary.md](docs/results_summary.md).
+
+## Limitations
+
+- Parameters are hand-tuned to give plausible curve shapes; the model is **not calibrated** against real outbreak data.
+- Contact is purely local (8 neighbours, no long-range travel); no loss of immunity.
+- Spread happens in periodic events, which makes the daily curves step-shaped.
+
+## Development
 
 ```bash
-# Create and activate environment
-conda env create -f environment.yml
-conda activate epidemicflow
+pip install -e ".[dev]"
+pytest
 ```
 
-## Option 2: Using pip
+Tests cover reproducibility (same seed, same result), population conservation, edge and corner neighbourhoods, quarantine timing and the summary statistics. They run on every push via GitHub Actions.
 
-```bash
-pip install -r requirements.txt
+```
+src/epidemicflow/
+  params.py        parameters, validation and preset scenarios
+  grid_utils.py    states, grid set-up, neighbour helpers
+  infection.py     infection spread and recovery
+  awareness.py     local and global awareness
+  simulation.py    daily loop, results and summary
+  experiments.py   multi-seed runs and plots
+  cli.py           command-line interface
+tests/             pytest suite
 ```
 
----
+## Licence
 
-## 🧠 Applications
-
-EpidemicFlow can be used for:
-- Studying behavioral responses to disease spread.
-- Evaluating the effect of awareness campaigns on outbreak size.
-- Teaching epidemiological modeling and probabilistic simulations.
-- Comparing infection control measures such as quarantine vs. awareness.
-
----
-
-## 🧾 License
-
-
-This project is licensed under the **Creative Commons Attribution–NonCommercial 4.0 International License (CC BY-NC 4.0)**.
-
-You are free to:
-- Share — copy and redistribute the material in any medium or format  
-- Adapt — remix, transform, and build upon the material  
-
-Under the following terms:
-- Attribution — you must give appropriate credit to the author.  
-- NonCommercial — you may not use the material for commercial purposes.
-
-Read the full licence text here: [https://creativecommons.org/licenses/by-nc/4.0/](https://creativecommons.org/licenses/by-nc/4.0/)
-
----
-
-## 👤 Author
-
-**Mohamed Fahad**  
-Copyright © 2025  
-Licensed under the [CC BY-NC 4.0 License](./LICENSE)
-
-
-
-
+See [LICENSE](LICENSE).

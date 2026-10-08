@@ -1,84 +1,46 @@
-# 📊 EpidemicFlow — Results Summary
+# EpidemicFlow – Results Summary
 
-This document summarizes key simulation results and scenario analyses using the **EpidemicFlow** model.
+All results are from **30 runs per scenario (seeds 0–29)**. A single run is one random outcome. Runs with identical parameters vary a lot, so results are reported as mean, standard deviation and the 5th–95th percentile range.
 
----
+Reproduce everything on this page with:
 
-## 🧪 Scenario Overview
+```bash
+python examples/run_scenarios.py
+```
 
-| Scenario | Description | Infection Prob | Awareness Rate | Quarantine Prob | Grid Size | Initial Infections |
-|-----------|--------------|----------------|----------------|-----------------|------------|--------------------|
-| **Scenario 1** | *Seasonal Influenza–like* (moderate spread, balanced awareness) | 55% | 35% | 60% | 35×35 | 6 |
-| **Scenario 2** | *COVID-19–like* (moderate-high spread, strong awareness and quarantine) | 70% | 50% | 70% | 40×40 | 10 |
-| **Scenario 3** | *Childhood Disease–like* (high transmissibility, low awareness) | 85% | 20% | 40% | 30×30 | 8 |
+## Scenarios
 
----
+| Scenario | Infection prob | Awareness rate | Awareness efficacy | Quarantine prob | Recovery mean / var | Grid | Initial infections |
+|---|---|---|---|---|---|---|---|
+| Influenza-like | 0.55 | 0.45 | 0.35 | 0.60 | 8 / 4 | 35×35 | 6 |
+| COVID-like | 0.70 | 0.30 | 0.30 | 0.70 | 10 / 9 | 40×40 | 10 |
+| Measles-like | 0.85 | 0.20 | 0.20 | 0.40 | 9 / 9 | 30×30 | 8 |
 
-## 📈 Key Results Summary
+## Results
 
-| Metric | Scenario 1 | Scenario 2 | Scenario 3 |
-|--------|------------|-------------|-------------|
-| **Epidemic Duration (days)** | 97         | 116 | 90 |
-| **Peak Active Infections** | 163        | 518 | 329 |
-| **Day of Peak** | 24         | 30 | 21 |
-| **Total Infected** | 717        | 1568 | 882 |
-| **Never Infected** | 502        | 32 | 18 |
-| **Individuals who became aware** | 1109       | 1201 | 553 |
-| **Avg Awareness Efficacy** | 31.69      | 22.52 | 12.29 |
-| **Individuals who quarantined** | 159        | 891 | 519 |
-| **Mean Recovery Duration** | 7.58       | 9.46 | 8.49 |
-| **Recovery Std Dev** | 1.97       | 3.14 | 2.95 |
+| Metric (mean ± sd, [5th–95th pct]) | Influenza-like | COVID-like | Measles-like |
+|---|---|---|---|
+| Attack rate (share ever infected) | 42% ± 5% [34–49%] | 86% ± 4% [79–91%] | 94% ± 1% [92–95%] |
+| Peak active infections | 150 ± 19 [118–181] | 389 ± 72 [304–504] | 307 ± 34 [257–357] |
+| Day of peak | 21 ± 3 | 30 ± 5 | 19 ± 2 |
+| Epidemic duration (days) | 99 ± 21 [77–136] | 138 ± 31 [102–201] | 93 ± 23 [63–130] |
+| People who became aware | 982 ± 35 | 725 ± 139 | 295 ± 40 |
+| People who quarantined | 187 ± 21 | 757 ± 87 | 458 ± 22 |
 
----
+## Plots
 
-## 📊 Interpreting the Results
+Median curve and 5–95% band across the 30 runs.
 
-### 🦠 Scenario 1 — Seasonal Influenza–like
-- **Moderate infection spread** with a delayed but strong awareness response.  
-- Peak reached on **Day 24** with **163 active infections (≈13%)**, slightly later and lower than expected.  
-- **Total infected (~58%)** fits well within the expected range for influenza-like epidemics.  
-- **Awareness adoption (~90%)** was higher than typical, leading to a slightly flattened peak and extended duration.  
-- **Quarantine participation (13%)** remained mild, consistent with partial compliance scenarios.  
-- Recovery statistics (**mean: 7.6 days, SD: 2.0**) align closely with modeled real-world influenza recovery distributions.  
+![Influenza-like](images/influenza.png)
+![COVID-like](images/covid.png)
+![Measles-like](images/measles.png)
 
-✅ *Approx. 84% realism accuracy — strong behavioral realism with slightly overactive awareness response.*
+## Observations
 
----
+- **Higher transmissibility combined with lower awareness gives larger outbreaks.** The measles-like scenario infects almost everyone, with very little variation between runs. The influenza-like scenario infects under half the population.
+- **Awareness flattens the outbreak.** In the influenza-like scenario, awareness spreads faster than infection and most people who stay uninfected end up aware.
+- **Outcomes vary widely between runs**, especially epidemic duration. A long tail of slow, late infections can extend a run by weeks. This is why results are reported over many seeds.
 
-### 😷 Scenario 2 — COVID-19–like
-- Higher awareness and quarantine reduced total infected, but duration increased.  
-- Clear “flattening of the curve” effect — peak widened but delayed (Day 30).  
-- Recovery variance realistic due to gamma-based recovery modeling.  
+## What these results do not show
 
-✅ *Approx. 88–90% realism.*
-
----
-
-### 🧒 Scenario 3 — Childhood Disease–like
-- Rapid transmission and low awareness led to fast outbreak (Day 21 peak).  
-- Awareness adoption lagged behind infections.  
-- High infection total (~98%) consistent with measles-like behavior.  
-
-✅ *Approx. 85–88% realism.*
-
----
-
-## 📉 Observed Trends Across Scenarios
-
-- **Awareness efficacy and infection probability** exhibit an inverse relationship.  
-- **Higher awareness** = longer epidemic duration but smaller peaks.  
-- **Gamma-distributed recovery** smooths day-to-day fluctuations.  
-- **Adaptive awareness/infection cycles** create realistic temporal dynamics.
-
----
-
-## 📂 Future Additions
-
-This file will later include:
-- 📊 **Matplotlib or Seaborn plots** (e.g., infection/awareness curves)
-- 📈 **Heatmaps** of grid states over time
-- 📑 **Exported CSV summaries** of simulation logs
-
----
-
-*Document generated from real simulation runs using EpidemicFlow v1.0.*
+The parameters are hand-tuned so the curves have plausible shapes. The model has **not been calibrated against real outbreak data**, so the scenario names describe the intended character of each outbreak, not a validated reproduction of that disease.
