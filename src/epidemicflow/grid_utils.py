@@ -31,7 +31,7 @@ class Population:
 #   quarantine_duration_grid - a grid to track how many days are left for each quarantined individual
 #   infection_day_grid - a grid to track the day each individual got infected
 def make_grid(
-    grid_size: int, init_infections: int
+        grid_size: int, init_infections: int, rng: np.random.Generator
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 
     grid = np.zeros((grid_size, grid_size), dtype=np.int8)
@@ -41,7 +41,7 @@ def make_grid(
         mask = grid == 0  # identify susceptible individuals
         view = grid[mask]
         new = np.zeros(view.shape)
-        randindex = np.random.randint(0, new.size)  # chooses a random individual
+        randindex = rng.integers(0, new.size)  # chooses a random individual
         new[randindex] = 1  # update the individual to infected
         grid[mask] = new  # apply the change
 

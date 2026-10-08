@@ -59,8 +59,9 @@ def infect(
     awareness_rate: float = None,
     quarantine_chance: float = None,
     awareness_efficacy: float = None,
+    *,
+    rng: np.random.Generator,
 ) -> int:
-
     # Dynamic infection cycle based on current infection percentage
 
     gridsize = grid.shape[
@@ -135,7 +136,7 @@ def infect(
                 mask4 = neighbours[:, 1] != y[1]
                 neighbours = neighbours[np.logical_or(mask3, mask4)]
 
-            chance_of_disease = np.random.random(
+            chance_of_disease = rng.random(
                 (aware_neighbours.size // 2,)
             )  # random chance for each aware neighbour
 
@@ -155,7 +156,7 @@ def infect(
                 diseased
             ]  # store the newly infected aware neighbours
 
-        chance_of_disease = np.random.random(
+        chance_of_disease = rng.random(
             (neighbours.size // 2,)
         )  # random chance for each unaware susceptible neighbour
         if grid[x[0], x[1]] == 5:  # if the infected individual is aware
@@ -188,7 +189,7 @@ def infect(
                     if (
                         not grid[y[0], y[1]] == 3
                     ):  # if the individual is not already quarantined
-                        chance = np.random.random()
+                        chance = rng.random()
                         if chance > quarantine_chance:  # does not quarantine
                             if grid[y[0], y[1]] == 4:  # if the individual is aware
                                 grid[y[0], y[1]] = (
@@ -216,7 +217,7 @@ def infect(
                             min_days = 7  # minimum quarantine duration
                             max_days = 14  # maximum quarantine duration
 
-                            days = np.random.randint(
+                            days = rng.integers(
                                 min_days, max_days + 1
                             )  # randomly choose a quarantine duration
                             quarantine_duration_grid[y[0], y[1]] = (
@@ -226,7 +227,7 @@ def infect(
                         quarantine_infection_reduction = (
                             0.9  # 90% reduction in infection risk due to quarantine
                         )
-                        chance = np.random.random()
+                        chance = rng.random()
                         new_chance_infection = infection_prob * (
                             1 - quarantine_infection_reduction
                         )  # reduced infection probability due to quarantine
@@ -255,7 +256,7 @@ def infect(
                         ) + get_score(
                             grid, get_neighbours(y, gridsize), 5
                         )  # get the percentage of aware neighbours
-                        chance = np.random.random()
+                        chance = rng.random()
 
                         x = (
                             0.6 * scoreA + 0.4 * score
@@ -323,6 +324,7 @@ def recover(
     recovery_mean: int,
     recovery_var: int,
     recovery_times: np.ndarray,
+    rng: np.random.Generator,
 ) -> np.ndarray:
 
     k = recovery_mean**2 / recovery_var  # shape parameter for gamma distribution
@@ -331,7 +333,7 @@ def recover(
         recovery_grid == -1
     )  # identify newly infected individuals without assigned recovery days
     random_recovery_days = np.round(
-        np.random.gamma(shape=k, scale=theta, size=recovery_grid[infected].shape), 2
+        rng.gamma(shape=k, scale=theta, size=recovery_grid[infected].shape), 2
     ).astype(
         np.int64
     )  # generate random recovery days from gamma distribution

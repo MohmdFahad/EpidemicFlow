@@ -1,4 +1,7 @@
+import numpy as np
+
 from epidemicflow.grid_utils import make_grid
+
 from epidemicflow.simulation import simulation
 
 def main():
@@ -13,6 +16,7 @@ def main():
     initial_infections = 10
 
     output_path = "examples/results/"
+    rng = np.random.default_rng(1)  # fixed seed: same result every run
 
     (
         grid,
@@ -21,7 +25,7 @@ def main():
         was_ever_quarantined,
         quarantine_duration_grid,
         infection_day_grid,
-    ) = make_grid(grid_size, initial_infections)
+    ) = make_grid(grid_size, initial_infections, rng)
     simulation(
         grid,
         recover_grid,
@@ -36,6 +40,7 @@ def main():
         quarantine_prob,
         awareness_efficacy,
         output_path,
+        rng=rng,
     )
 
 

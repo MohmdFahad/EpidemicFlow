@@ -51,8 +51,11 @@ def spread_awareness(
     pos: np.ndarray,
     gridsize: int,
     awareness_rate: float = None,
+    *,
+    rng: np.random.Generator,
 ):
     # Global awareness
+
     infection_percent = (
         grid[grid == 1].size + grid[grid == 5].size
     ) / gridsize**2  # percentage of infected individuals in the grid
@@ -98,10 +101,10 @@ def spread_awareness(
         grid == 0
     ].copy()  # temporary grid to apply global awareness changes
     reached = (
-        np.random.random(size=tmp_grid.shape) < 0.025
+        rng.random(size=tmp_grid.shape) < 0.025
     )  # 2.5% chance of being reached by global awareness campaigns
 
-    global_chance = np.random.random(
+    global_chance = rng.random(
         size=tmp_grid.shape
     )  # random chance for each susceptible individual
 
@@ -118,7 +121,7 @@ def spread_awareness(
     # if the individual is susceptible
     if grid[pos[0], pos[1]] == 0 | grid[pos[0], pos[1]] == 1:  #
         infection_percent = (grid[grid == 1].size + grid[grid == 5].size) / gridsize**2
-        chance = np.random.random()  # produces a random chance
+        chance = rng.random()  # produces a random chance
         score = get_score(grid, get_neighbours(pos, gridsize), 4) + get_score(
             grid, get_neighbours(pos, gridsize), 5
         )  # gets the percentage of aware neighbours

@@ -39,8 +39,9 @@ def simulation(
     quarantine_chance: float = None,
     awareness_efficacy: float = None,
     output_path: str = "default",
+    *,
+    rng: np.random.Generator,
 ):
-
     print(
         "-" * 23,
         ">",
@@ -118,6 +119,7 @@ def simulation(
             infection_prob,
             awareness_rate,
             quarantine_chance,
+            rng=rng,
         )  # update the grid state
         new_infections = infect(
             grid,
@@ -130,6 +132,7 @@ def simulation(
             awareness_rate,
             quarantine_chance,
             awareness_efficacy,
+            rng=rng,
         )  # infect new individuals
         recovery_times = recover(
             day,
@@ -138,6 +141,7 @@ def simulation(
             recovery_mean,
             recovery_var,
             recovery_times,
+            rng=rng,
         )  # recover individuals
         quarantined = np.sum(
             was_ever_quarantined
@@ -301,8 +305,11 @@ def grid_status_update(
     infection_prob: float,
     awareness_rate: float = None,
     quarantine_chance: float = None,
+    *,
+    rng: np.random.Generator,
 ):
     # Quarantine updates
+
 
     quarantine_pos = get_pos(
         grid, 3
@@ -342,7 +349,7 @@ def grid_status_update(
             grid, get_neighbours(pos, gridsize), 1
         )  # get the percentage of infected neighbours
         if score >= 0.5:  # if over half the neighbours are infected
-            chance = np.random.random()
+            chance = rng.random()
             if (
                 chance < quarantine_chance
             ):  # if the individual falls in the chance of quarantining
@@ -351,7 +358,7 @@ def grid_status_update(
                 )
                 min_days = 7  # minimum quarantine duration
                 max_days = 14  # maximum quarantine duration
-                days = np.random.randint(
+                days = rng.integers(
                     min_days, max_days + 1
                 )  # randomly choose a quarantine duration
                 quarantine_duration_grid[
@@ -421,7 +428,7 @@ def grid_status_update(
         for position in positions:
             for neighbour in get_neighbours(position, gridsize):
                 spread_awareness(
-                    grid, was_ever_aware_grid, neighbour, gridsize, awareness_rate
+                    grid, was_ever_aware_grid, neighbour, gridsize, awareness_rate, rng=rng
                 )
     # TODO think about this
     """positions = get_pos(grid, 5)

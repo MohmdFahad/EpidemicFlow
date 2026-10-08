@@ -1,4 +1,7 @@
+import numpy as np
+
 from .grid_utils import make_grid
+
 from .simulation import simulation
 
 # The main function is used to run the epidemic simulation program, gather user inputs for simulation parameters, initialize the grid, and start the simulation process
@@ -89,7 +92,14 @@ def main():
         )
     )
 
+    seed_text = input(
+        "\nEnter a *random seed* (leave blank for a random run):\n"
+        "   The same seed and parameters always give the same result.\n> "
+    ).strip()
+    rng = np.random.default_rng(int(seed_text) if seed_text else None)
+
     print("< < P A R A M E T E R S  A C C E P T E D ! > >")
+
     print()
 
 
@@ -100,7 +110,7 @@ def main():
         was_ever_quarantined,
         quarantine_duration_grid,
         infection_day_grid,
-    ) = make_grid(grid_size, init_infections)
+    ) = make_grid(grid_size, init_infections, rng)
 
     simulation(
         grid,
@@ -115,6 +125,7 @@ def main():
         awareness_rate,
         quarantine_chance,
         awareness_efficacy,
+        rng=rng,
     )
 
 if __name__ == "__main__":
