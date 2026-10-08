@@ -112,33 +112,12 @@ def get_neighbours(x: np.ndarray, gridsize: int) -> np.ndarray:
 # Used for getting the positions of a certain label
 # Input -
 #   grid - a N x N grid to check for labels
-#   label - the label number [0,1,2,3,4,5,6]
+#   labels - one or more label numbers [0,1,2,3,4,5,6]
 # Output -
 #   positions - a two-dimensional array of the positions
-def get_pos(grid: np.ndarray, label: int) -> np.ndarray:
-    it = np.nditer(
-        grid, order="C", flags=["multi_index"]
-    )  # used to iterate through the grid entry by entry
-    positions = np.zeros((1, 2))  # Used instead of an empty array
-    first = True
-    for y in it:
-        if first and label == y:  # for the first position identified
-            positions = np.array(
-                it.multi_index
-            )  # redefine positons to include a valid one
-            first = False
-        elif label == y:
-            positions = np.vstack(
-                [positions, it.multi_index]
-            )  # add the new position to the array
-
-    if (
-        positions.ndim == 1 and not first
-    ):  # Makes positons a two-dimensional array in case there was only one position identified
-        positions = positions[np.newaxis, ...]
-    elif positions.dtype == np.float64:  # For cases where no positons were found
-        positions = np.array([])
-    return positions
+def get_pos(grid: np.ndarray, *labels: int) -> np.ndarray:
+    # np.isin marks every cell whose state is one of the labels; np.argwhere returns their (row, col) positions
+    return np.argwhere(np.isin(grid, labels))
 
 # Used to obtain a percentage of a label among neighbours
 # Input -

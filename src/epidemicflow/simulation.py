@@ -41,6 +41,7 @@ def simulation(
     output_path: str = "default",
     *,
     rng: np.random.Generator,
+    verbose: bool = False,
 ):
     print(
         "-" * 23,
@@ -166,12 +167,12 @@ def simulation(
         ]  # log the day's results
         i += 1  # increment day counter
         day += 1  # increment day
-        # to print the grid every iteration
-        for row in grid:
-            print(" " * 21, end="")
-            print(row)
-        print()
-
+        # to print the grid every iteration (only when asked: it is slow and floods the screen)
+        if verbose:
+            for row in grid:
+                print(" " * 21, end="")
+                print(row)
+            print()
     total_recovered = grid[
         grid == 2
     ].size  # final total number of recovered individuals
