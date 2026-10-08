@@ -1,333 +1,168 @@
+"""Infection spread and recovery."""
+
 import numpy as np
-from .grid_utils import get_neighbours, get_pos, get_score
 
-def generate_infection_day_cycle_parameters(
-    infection_prob: float, awareness_rate: float
-):
+from .grid_utils import (
+    INFECTED,
+    INFECTED_AWARE,
+    INFECTED_QUARANTINED,
+    RECOVERED,
+    SPREADER_STATES,
+    SUSCEPTIBLE,
+    SUSCEPTIBLE_AWARE,
+    SUSCEPTIBLE_QUARANTINED,
+    INFECTED_STATES,
+    Population,
+    count,
+    get_neighbours,
+    get_pos,
+    get_score,
+)
+from .params import SimulationParams
 
+AWARE_SPREADER_FACTOR = 0.3  # an aware infected person transmits at 30% of the normal rate
+QUARANTINE_PROTECTION = 0.9  # quarantine removes 90% of infection risk
+QUARANTINE_DAYS = (7, 14)  # quarantine lasts between 7 and 14 days (inclusive)
+
+
+def generate_infection_day_cycle_parameters(infection_prob: float, awareness_rate: float):
+    """Hand-tuned parameters for how often (in days) infection spread events happen."""
     if infection_prob >= 0.8 and awareness_rate <= 0.3:
-        n_min = 2
-        n_max = 5
-        p0 = 0.65 # inflection point
-        a = 3.0 # steepness
-    elif infection_prob >= 0.7 and awareness_rate <= 0.5:  # current
-        n_min = 1  # 2 1
-        n_max = 6  # !6 7
-        p0 = 0.4  # >0.7 >0.85 >>0.90 !0.60 0.80
-        a = 5  # >11.0 10.0 !()13.0 9.0 11.0
+        n_min, n_max, p0, a = 2, 5, 0.65, 3.0
+    elif infection_prob >= 0.7 and awareness_rate <= 0.5:
+        n_min, n_max, p0, a = 1, 6, 0.4, 5.0
     elif infection_prob <= 0.4 and awareness_rate >= 0.6:
-        n_min = 4
-        n_max = 8
-        p0 = 0.3
-        a = 9.0
+        n_min, n_max, p0, a = 4, 8, 0.3, 9.0
     elif infection_prob >= 0.7 and awareness_rate >= 0.6:
-        n_min = 3
-        n_max = 7
-        p0 = 0.5
-        a = 10.5
+        n_min, n_max, p0, a = 3, 7, 0.5, 10.5
     else:
-        n_min = 1  # !1 >2
-        n_max = 5 # >()7 >6
-        p0 = 0.7  # ()0.5 !0.3 >0.4 >0.3 >0.2 0.4 !0.7 >0.6
-        a = 2  # ()3 >()2 !3 >4 >5 !6 !7 9 !13 12 !10
-
-    return n_min, n_max, round(p0, 2), round(a, 2)
+        n_min, n_max, p0, a = 1, 5, 0.7, 2.0
+    return n_min, n_max, p0, a
 
 
-# Used to infect new individuals around the grid who are amongst infected individuals with a probability of infection, and precautionary
-# parameters such as probability of awareness,quarantine and awareness efficacy
-# Input -
-#   grid - an N x N grid to analyze individual spatiality
-#   was_ever_aware_grid - a grid to track every individual of whether they were ever aware
-#   was_ever_quarantined - a grid to track every individual of whether they ever quarantined
-#   quarantine_duration_grid - a grid to track how many days are left for each quarantined individual
-#   infection_day_grid - a grid to track the day each individual got infected
-#   infection_prob - the probability of a susceptible individual acquiring the disease around infected neighbours
-#   awareness_rate - the probability that an susceptible individual adopts protective measures
-#   quarantine_chance - the probability that an individual quarantines when surrounded by infected individuals
-#   awareness_efficacy - the extent to which awareness reduces infection risk
-# Output -
-#   sum - the number of new infections that occurred that day
-def infect(
-    grid: np.ndarray,
-    was_ever_aware_grid: np.ndarray,
-    was_ever_quarantined: np.ndarray,
-    quarantine_duration_grid: np.ndarray,
-    infection_day_grid: np.ndarray,
-    day: int,
-    infection_prob: float,
-    awareness_rate: float = None,
-    quarantine_chance: float = None,
-    awareness_efficacy: float = None,
-    *,
-    rng: np.random.Generator,
-) -> int:
-    # Dynamic infection cycle based on current infection percentage
-
-    gridsize = grid.shape[
-        0
-    ]  # size of the grid (e.g. for a grid of shape 15 x 15, gridsize = 15)
-
-    infection_percent = (
-        grid[grid == 1].size + grid[grid == 5].size + grid[grid == 6].size
-    ) / gridsize**2  # percentage of infected individuals in the grid
-
+def infection_cycle_length(infection_percent: float, params: SimulationParams) -> int:
+    """Days between infection spread events: n = n_min + (n_max - n_min) / (1 + exp(a (I - p0)))."""
     n_min, n_max, p0, a = generate_infection_day_cycle_parameters(
-        infection_prob=infection_prob, awareness_rate=awareness_rate
+        params.infection_prob, params.awareness_rate
     )
     n_float = n_min + (n_max - n_min) / (1.0 + np.exp(a * (infection_percent - p0)))
-    n = max(1, int(round(n_float)))
-
-    if not (day % n == 0):  # to control infection cycle
-        return 0  # no new infections this day
-
-    infected_pos = get_pos(grid, 1, 5)  # positions of everyone who can spread: infected (1) and aware infected (5)
-
-    sum = 0  # to count new infections
-
-    for x in infected_pos:  # for each infected individual
-
-        neighbours = get_neighbours(
-            x, gridsize
-        )  # get the neighbours of the infected individual
-
-        aware_diseased = np.array([])  # to store aware neighbours who get infected
-
-        states = grid[neighbours[:, 0], neighbours[:, 1]]  # the neighbours' states right now
-        aware_neighbours = neighbours[states == 4]  # aware and susceptible neighbours
-        neighbours = neighbours[
-            np.isin(states, (0, 3))
-        ]  # unaware susceptible neighbours (including quarantined); infected and recovered people are skipped
-
-        # TODO think about this one
-        """recovery_time = (recovery_grid[x[0], x[1]] - infection_day_grid[x[0], x[1]])
-        sigma = recovery_time / 2.5
-        center = recovery_time * 0.2
-        day_since_infection = day - infection_day_grid[x[0], x[1]]
-        decay_factor = np.exp(-(((day_since_infection - center) / 2) ** 2) / (2 * sigma ** 2))
-        decay_factor = np.clip(decay_factor, 0.3, 1.0)
-        infection_prob = infection_prob * decay_factor"""
-
-        if aware_neighbours.size != 0:  # if there are aware neighbours
-
-            chance_of_disease = rng.random(
-                (aware_neighbours.size // 2,)
-            )  # random chance for each aware neighbour
-
-            infection_prob_aware = infection_prob * (
-                1 - awareness_efficacy
-            )  # reduced infection probability for aware individuals
-
-            if grid[x[0], x[1]] == 5:  # if the infected individual is aware
-                infection_prob_aware = (
-                    infection_prob_aware * 0.3
-                )  # further reduce infection probability
-
-            diseased = (
-                chance_of_disease < infection_prob_aware
-            )  # determine which aware neighbours get infected
-            aware_diseased = aware_neighbours[
-                diseased
-            ]  # store the newly infected aware neighbours
-
-        chance_of_disease = rng.random(
-            (neighbours.size // 2,)
-        )  # random chance for each unaware susceptible neighbour
-        if grid[x[0], x[1]] == 5:  # if the infected individual is aware
-            reduced_prob = infection_prob * 0.3  # further reduce infection probability
-            diseased = (
-                chance_of_disease < reduced_prob
-            )  # determine which susceptible neighbours get infected
-        else:
-            diseased = chance_of_disease < infection_prob
-
-        if aware_diseased.size != 0:  # if there are newly infected aware neighbours
-            diseased = np.vstack(
-                [aware_diseased, neighbours[diseased]]
-            )  # combine with newly infected unaware neighbours
-        else:
-            diseased = neighbours[diseased]
-
-        # for spreading the infection in grid
-        for y in diseased:
-            if grid[y[0], y[1]] == 3:  # quarantined: quarantine removes 90% of the infection risk
-                if rng.random() < 0.1:
-                    grid[y[0], y[1]] = 6  # infected, but stays in quarantine
-                    sum += 1  # increment new infections count
-                    infection_day_grid[y[0], y[1]] = day  # set the infection day
-                continue  # nothing else happens to a quarantined individual
-            score = get_score(
-                grid, get_neighbours(y, gridsize), 1, 5
-            )  # get the percentage of infected neighbours (unaware or aware)
-            infection_percent = (
-                grid[grid == 1].size + grid[grid == 5].size
-            ) / gridsize**2  # percentage of infected individuals in the grid
-
-            if score >= 0.5:  # if over half the neighbours are infected
-
-                if awareness_rate:
-                    if (
-                        not grid[y[0], y[1]] == 3
-                    ):  # if the individual is not already quarantined
-                        chance = rng.random()
-                        if chance > quarantine_chance:  # does not quarantine
-                            if grid[y[0], y[1]] == 4:  # if the individual is aware
-                                grid[y[0], y[1]] = (
-                                    5  # make the individual aware and infected
-                                )
-                                sum += 1  # increment new infections count
-                                infection_day_grid[y[0], y[1]] = (
-                                    day  # set the infection day
-                                )
-                            else:
-                                grid[y[0], y[1]] = 1  # infect the individual
-                                sum += 1  # increment new infections count
-                                infection_day_grid[y[0], y[1]] = (
-                                    day  # set the infection day
-                                )
-                        else:  # quarantines
-
-                            grid[y[0], y[1]] = (
-                                3  # make the individual quarantined and susceptible
-                            )
-                            was_ever_quarantined[y[0], y[1]] = (
-                                True  # update the individual to having been quarantined
-                            )
-
-                            min_days = 7  # minimum quarantine duration
-                            max_days = 14  # maximum quarantine duration
-
-                            days = rng.integers(
-                                min_days, max_days + 1
-                            )  # randomly choose a quarantine duration
-                            quarantine_duration_grid[y[0], y[1]] = (
-                                days  # set the quarantine duration
-                            )
-                    else:
-                        quarantine_infection_reduction = (
-                            0.9  # 90% reduction in infection risk due to quarantine
-                        )
-                        chance = rng.random()
-                        new_chance_infection = infection_prob * (
-                            1 - quarantine_infection_reduction
-                        )  # reduced infection probability due to quarantine
-                        if new_chance_infection > chance:  # infects despite quarantine
-                            grid[y[0], y[1]] = 1  # infect the individual
-                            sum += 1  # increment new infections count
-                            infection_day_grid[y[0], y[1]] = (
-                                day  # set the infection day
-                            )
-                        else:  # does not infect due to quarantine
-                            continue
-                else:  # no awareness model
-                    grid[y[0], y[1]] = 1  # infect the individual
-                    sum += 1  # increment new infections count
-                    infection_day_grid[y[0], y[1]] = day  # set the infection day
-            else:  # if less than half the neighbours are infected
-
-                if grid[y[0], y[1]] != 4:  # if the individual is not already aware
-
-                    if awareness_rate:  # if awareness model is active
-
-                        # Applying a sigmoid function for awareness probability
-
-                        scoreA = get_score(
-                            grid, get_neighbours(y, gridsize), 4
-                        ) + get_score(
-                            grid, get_neighbours(y, gridsize), 5
-                        )  # get the percentage of aware neighbours
-                        chance = rng.random()
-
-                        x = (
-                            0.6 * scoreA + 0.4 * score
-                        )  # final score combining local awareness and infection factors (weights are adjustable)
-                        x = np.clip(x, 0.0, 1.0)  # ensure x is within [0, 1]
-
-                        k = 6  # steepness parameter
-
-                        b = (
-                            0.45 - 0.15 * infection_percent
-                        )  # threshold parameter (awareness threshold)
-                        sigmoid = 1 / (1 + np.exp(-k * (x - b)))  # sigmoid function
-                        baseline_spont = (
-                            0.01  # baseline spontaneous awareness adoption rate
-                        )
-                        raw = (
-                            baseline_spont + (1 - baseline_spont) * sigmoid
-                        )  # raw awareness probability before scaling
-                        P_aware = np.clip(
-                            awareness_rate * raw, 0.0, 1.0
-                        )  # final awareness probability scaled by awareness_rate
-
-                        if chance > P_aware:  # does not become aware
-
-                            grid[y[0], y[1]] = 1  # infect the individual
-                            sum += 1  # increment new infections count
-                            infection_day_grid[y[0], y[1]] = (
-                                day  # set the infection day
-                            )
-
-                        else:  # becomes aware
-                            was_ever_aware_grid[y[0], y[1]] = (
-                                True  # update the individual to having been aware
-                            )
-                            grid[y[0], y[1]] = (
-                                4  # make the individual aware and susceptible
-                            )
-                    else:  # no awareness model
-
-                        grid[y[0], y[1]] = 1  # infect the individual
-                        sum += 1  # increment new infections count
-                        infection_day_grid[y[0], y[1]] = day  # set the infection day
-                else:  # if the individual is already aware
-                    if awareness_rate:  # if awareness model is active
-                        grid[y[0], y[1]] = 5  # infect the individual, who stays aware
-                        sum += 1  # increment new infections count
-                        infection_day_grid[y[0], y[1]] = day  # set the infection day
-    return sum  # return the number of new infections
+    return max(1, int(round(n_float)))
 
 
-# Used to assign a random number of recovery days to newly infected individuals and recover infected individuals across the grid based on their date of recovery
-# Input -
-#   day - the current day of the simulation
-#   grid - an N x N grid to analyze individual spatiality
-#   recovery_grid - a grid to track the day each individual is set to recover
-#   recovery_mean - the mean number of days for recovery
-#   recovery_var - the variance in number of days for recovery
-#   recovery_times - an array to store the recovery times of all infected individuals
-# Output -
-#   recovery_times - an updated array with the recovery times of all newly infected individuals
-def recover(
-    day: int,
-    grid: np.ndarray,
-    recovery_grid: np.ndarray,
-    recovery_mean: int,
-    recovery_var: int,
-    recovery_times: np.ndarray,
-    rng: np.random.Generator,
-) -> np.ndarray:
+def start_quarantine(pop: Population, pos, rng: np.random.Generator) -> None:
+    pop.quarantine_duration_grid[pos] = rng.integers(QUARANTINE_DAYS[0], QUARANTINE_DAYS[1] + 1)
+    pop.was_ever_quarantined[pos] = True
 
-    k = recovery_mean**2 / recovery_var  # shape parameter for gamma distribution
-    theta = recovery_var / recovery_mean  # scale parameter for gamma distribution
-    infected = np.isin(grid, (1, 5, 6)) & (
-            recovery_grid == -1
-    )  # identify infected individuals (unaware, aware or quarantined) without an assigned recovery day
-    random_recovery_days = np.maximum(
-        1, np.rint(rng.gamma(shape=k, scale=theta, size=recovery_grid[infected].shape))
-    ).astype(
-        np.int64
-    )  # random recovery days from the gamma distribution, rounded to whole days, at least 1
-    if recovery_times.size == 0:
-        recovery_times = random_recovery_days  # initialize recovery_times if empty
+
+def awareness_probability(pop: Population, y: np.ndarray, infection_percent: float,
+                          awareness_rate: float) -> float:
+    """Chance that an exposed, unaware individual adopts protective behaviour instead of being infected."""
+    neighbours = get_neighbours(y, pop.size)
+    aware_share = get_score(pop.grid, neighbours, SUSCEPTIBLE_AWARE, INFECTED_AWARE)
+    infected_share = get_score(pop.grid, neighbours, *SPREADER_STATES)
+    x = np.clip(0.6 * aware_share + 0.4 * infected_share, 0.0, 1.0)
+    k = 6  # steepness
+    b = 0.45 - 0.15 * infection_percent  # threshold
+    sigmoid = 1 / (1 + np.exp(-k * (x - b)))
+    baseline_spont = 0.01  # baseline spontaneous adoption
+    raw = baseline_spont + (1 - baseline_spont) * sigmoid
+    return float(np.clip(awareness_rate * raw, 0.0, 1.0))
+
+
+def _infect(pop: Population, pos, day: int, quarantined: bool = False) -> None:
+    current = pop.grid[pos]
+    if quarantined:
+        pop.grid[pos] = INFECTED_QUARANTINED
+    elif current == SUSCEPTIBLE_AWARE:
+        pop.grid[pos] = INFECTED_AWARE
     else:
-        recovery_times = np.hstack(
-            [recovery_times, random_recovery_days]
-        )  # append new recovery times
-    recovery_grid[infected] = (random_recovery_days + day).astype(
-        np.int64
-    )  # set recovery day for newly infected individuals
-    grid[day == recovery_grid] = 2  # recover individuals whose recovery day is today
-    recovery_grid[day == recovery_grid] = (
-        -1
-    )  # reset recovery day for recovered individuals
-    return recovery_times  # return updated recovery times
+        pop.grid[pos] = INFECTED
+    pop.infection_day_grid[pos] = day
+
+
+def infect(pop: Population, params: SimulationParams, day: int, rng: np.random.Generator) -> int:
+    """Spread infection from every spreader to its susceptible neighbours. Returns the number of new infections."""
+    grid = pop.grid
+    n_total = grid.size
+
+    infection_percent = count(grid, *INFECTED_STATES) / n_total
+    if day % infection_cycle_length(infection_percent, params) != 0:
+        return 0  # no spread event today
+
+    new_infections = 0
+    for x in get_pos(grid, *SPREADER_STATES):
+        spreader_aware = grid[x[0], x[1]] == INFECTED_AWARE
+        neighbours = get_neighbours(x, pop.size)
+        states = grid[neighbours[:, 0], neighbours[:, 1]]  # read the grid *now*, so nobody is infected twice
+
+        prob = params.infection_prob * (AWARE_SPREADER_FACTOR if spreader_aware else 1.0)
+        prob_aware = prob * (1 - params.awareness_efficacy)
+
+        exposed = []
+        for nb, state in zip(neighbours, states):
+            if state in (SUSCEPTIBLE, SUSCEPTIBLE_QUARANTINED):
+                p = prob
+            elif state == SUSCEPTIBLE_AWARE:
+                p = prob_aware
+            else:
+                continue  # already infected or recovered
+            if rng.random() < p:
+                exposed.append(nb)
+
+        for y in exposed:
+            pos = (y[0], y[1])
+            state = grid[pos]
+
+            if not params.behavioural:
+                _infect(pop, pos, day)
+                new_infections += 1
+                continue
+
+            if state == SUSCEPTIBLE_QUARANTINED:
+                # quarantine protects against most exposures
+                if rng.random() < 1 - QUARANTINE_PROTECTION:
+                    _infect(pop, pos, day, quarantined=True)
+                    new_infections += 1
+                continue
+
+            infected_share = get_score(grid, get_neighbours(y, pop.size), *SPREADER_STATES)
+            if infected_share >= 0.5:
+                # surrounded by infections: may quarantine instead of being infected
+                if rng.random() < params.quarantine_chance:
+                    grid[pos] = SUSCEPTIBLE_QUARANTINED
+                    start_quarantine(pop, pos, rng)
+                else:
+                    _infect(pop, pos, day)
+                    new_infections += 1
+            elif state == SUSCEPTIBLE_AWARE:
+                _infect(pop, pos, day)
+                new_infections += 1
+            else:
+                infection_percent = count(grid, *SPREADER_STATES) / n_total
+                if rng.random() < awareness_probability(pop, y, infection_percent, params.awareness_rate):
+                    grid[pos] = SUSCEPTIBLE_AWARE  # adopts protective behaviour in time
+                    pop.was_ever_aware[pos] = True
+                else:
+                    _infect(pop, pos, day)
+                    new_infections += 1
+
+    return new_infections
+
+
+def recover(pop: Population, params: SimulationParams, day: int, rng: np.random.Generator) -> np.ndarray:
+    """Assign Gamma-distributed recovery days to newly infected individuals and recover those due today.
+
+    Returns the recovery durations assigned today.
+    """
+    k = params.recovery_mean**2 / params.recovery_var  # shape
+    theta = params.recovery_var / params.recovery_mean  # scale
+
+    needs_day = np.isin(pop.grid, INFECTED_STATES) & (pop.recovery_grid == -1)
+    durations = np.maximum(1, np.rint(rng.gamma(k, theta, size=int(needs_day.sum())))).astype(np.int64)
+    pop.recovery_grid[needs_day] = day + durations
+
+    recovering = pop.recovery_grid == day
+    pop.grid[recovering] = RECOVERED
+    pop.recovery_grid[recovering] = -1
+    pop.quarantine_duration_grid[recovering] = 0
+    return durations

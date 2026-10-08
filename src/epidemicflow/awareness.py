@@ -1,153 +1,84 @@
+"""Awareness (protective behaviour) spread, both local (neighbours) and global (campaigns)."""
+
 import numpy as np
-from .grid_utils import get_neighbours, get_score
+
+from .grid_utils import (
+    AWARE_STATES,
+    INFECTED,
+    INFECTED_AWARE,
+    SPREADER_STATES,
+    SUSCEPTIBLE,
+    SUSCEPTIBLE_AWARE,
+    Population,
+    count,
+    get_neighbours,
+    get_score,
+)
+from .params import SimulationParams
 
 
-def generate_awareness_day_cycle_parameters(
-    infection_prob: float, awareness_rate: float
-):
-
+def generate_awareness_day_cycle_parameters(infection_prob: float, awareness_rate: float):
+    """Hand-tuned parameters for how often (in days) awareness spread events happen."""
     if infection_prob >= 0.8 and awareness_rate <= 0.3:
-        alpha = 4  # infection sensitivity
-        beta = 5  # awareness sensitivity
-        min_cycle = 3
-        max_cycle = 6
-    elif infection_prob >= 0.7 and awareness_rate <= 0.5:  # current
-        alpha = 3  # 4
-        beta = 8 # 7 !9 >8 7
-        min_cycle = 2  # !5 4 >3
-        max_cycle = 7
+        alpha, beta, min_cycle, max_cycle = 4, 5, 3, 6
+    elif infection_prob >= 0.7 and awareness_rate <= 0.5:
+        alpha, beta, min_cycle, max_cycle = 3, 8, 2, 7
     elif infection_prob <= 0.4 and awareness_rate >= 0.6:
-        alpha = 3
-        beta = 7
-        min_cycle = 4
-        max_cycle = 8
-
+        alpha, beta, min_cycle, max_cycle = 3, 7, 4, 8
     elif infection_prob >= 0.7 and awareness_rate >= 0.6:
-        alpha = 4.5
-        beta = 6
-        min_cycle = 3
-        max_cycle = 7
+        alpha, beta, min_cycle, max_cycle = 4.5, 6, 3, 7
     else:
-        alpha =  3# >9 >()8 >7 >6 5 4
-        beta = 1  # 4 >3 2 ()5
-        min_cycle = 1  # 2 >3 4 ()1
-        max_cycle = 4  # 8 7 6 ()7
-
+        alpha, beta, min_cycle, max_cycle = 3, 1, 1, 4
     return alpha, beta, min_cycle, max_cycle
 
 
-# Used to run population-wide awareness campaigns: each unaware susceptible individual becomes aware with a small
-# probability that rises with the infection level and falls as awareness saturates. Called ONCE per awareness event.
-# Input -
-#   grid - an N x N grid to analyze individual spatiality
-#   was_ever_aware_grid - a boolean two dimensional array capturing the state of every individual over the simulation
-#   gridsize - square root of the size of the grid (e.g. for a grid of shape 15 x 15, gridsize = 15)
-#   rng - the random number generator for this run
-# Output -
-#   None
-def global_awareness(
-    grid: np.ndarray,
-    was_ever_aware_grid: np.ndarray,
-    gridsize: int,
-    *,
-    rng: np.random.Generator,
-):
-    infection_percent = (
-        grid[grid == 1].size + grid[grid == 5].size
-    ) / gridsize**2  # percentage of infected individuals in the grid
-    awareness_percent = (
-        grid[grid == 4].size + grid[grid == 5].size
-    ) / gridsize**2  # percentage of aware individuals in the grid
-
-    base_awareness_rate = 0.002  # minimum awareness rate
-    max_awareness_rate = 0.01  # maximum awareness rate
-    infection_sensitivity = 6.0  # steepness of the infection response curve
-    infection_inflection = 0.5  # where infection triggers strongest awareness response
-    awareness_sensitivity = 13.0  # how strongly high awareness slows new adoption
-    awareness_inflection = 0.1  # where slowdown starts
-
-    # Infection driven term: higher infection percent -> higher awareness
-    infection_term = 1 / (
-        1 + np.exp(-infection_sensitivity * (infection_percent - infection_inflection))
+def awareness_cycle_length(infection_percent: float, awareness_percent: float,
+                           params: SimulationParams) -> int:
+    """Days between awareness spread events: n = n_max * exp(-alpha I + beta A), clipped to [n_min, n_max]."""
+    alpha, beta, min_cycle, max_cycle = generate_awareness_day_cycle_parameters(
+        params.infection_prob, params.awareness_rate
     )
-    # Awareness-driven term: higher awareness percent -> lower new awareness
-    awareness_term = 1 - (
-        1 / (1 + np.exp(-awareness_sensitivity * (awareness_percent - awareness_inflection)))
-    )
-
-    global_awareness_factor = (
-        base_awareness_rate
-        + (max_awareness_rate - base_awareness_rate) * infection_term * awareness_term
-    )  # chance that each unaware susceptible individual becomes aware in this event
-
-    newly_aware = (grid == 0) & (
-        rng.random(size=grid.shape) < global_awareness_factor
-    )  # unaware susceptible individuals reached by the campaign
-    grid[newly_aware] = 4  # make them aware and susceptible
-    was_ever_aware_grid[newly_aware] = True  # update the individuals to having been aware
+    n_float = max_cycle * np.exp(-alpha * infection_percent + beta * awareness_percent)
+    return int(np.clip(np.round(n_float), min_cycle, max_cycle))
 
 
-# Used to spread awareness to a position based on function parameters and individual spatiality
-# Input -
-#   grid - an N x N grid to analyze individual spatiality
-#   was_ever_aware_grid - a boolean two dimensional array capturing the state of every individual over the simulation
-#   pos - a 1-dimensional array that contains the position of the individual to spread awareness to
-#   gridsize - square root of the size of the grid (e.g. for a grid of shape 15 x 15, gridsize = 15)
-#   awareness_rate - the chance a susceptible individual can gain awareness from aware individuals | None - in case the model chosen in non behavioral
-#   rng - the random number generator for this run
-# Output -
-#   None
-def spread_awareness(
-    grid: np.ndarray,
-    was_ever_aware_grid: np.ndarray,
-    pos: np.ndarray,
-    gridsize: int,
-    awareness_rate: float = None,
-    *,
-    rng: np.random.Generator,
-):
-    # Local awareness
+def global_awareness(pop: Population, rng: np.random.Generator) -> None:
+    """Population-wide awareness campaigns. Runs ONCE per awareness event.
 
-    if grid[pos[0], pos[1]] in (0, 1):  # if the individual is susceptible or infected, and not yet aware
-        infection_percent = (grid[grid == 1].size + grid[grid == 5].size) / gridsize**2
-        chance = rng.random()  # produces a random chance
-        score = get_score(grid, get_neighbours(pos, gridsize), 4) + get_score(
-            grid, get_neighbours(pos, gridsize), 5
-        )  # gets the percentage of aware neighbours
-        # Applying a sigmoid function for awareness probability
+    Each unaware susceptible person becomes aware with a small probability that rises
+    with infection levels and falls as awareness saturates.
+    """
+    grid = pop.grid
+    n_total = grid.size
+    infection_percent = count(grid, *SPREADER_STATES) / n_total
+    awareness_percent = count(grid, *AWARE_STATES) / n_total
 
-        # Steepness parameter
-        k_min = 1  # min steepness
-        k_max = 33  # max steepness
-        lda = 2  # steepness growth rate
-        k = k_min + (k_max - k_min) * score**lda  # steepness
-        # More aware neighbours -> higher steepness -> higher awareness
+    base_rate, max_rate = 0.002, 0.01
+    infection_term = 1 / (1 + np.exp(-6.0 * (infection_percent - 0.5)))
+    awareness_term = 1 - 1 / (1 + np.exp(-13.0 * (awareness_percent - 0.1)))
+    daily_prob = base_rate + (max_rate - base_rate) * infection_term * awareness_term
 
-        # threshold parameter (awareness threshold)
-        b_max = 0.24  # min threshold
-        b_min = 0.74  # max threshold
-        lda = 1  # threshold decay rate
-        b = b_min + (b_max - b_min) * np.exp(-lda * score)
-        # More aware neighbours -> lower threshold -> higher awareness
+    newly_aware = (grid == SUSCEPTIBLE) & (rng.random(grid.shape) < daily_prob)
+    grid[newly_aware] = SUSCEPTIBLE_AWARE
+    pop.was_ever_aware[newly_aware] = True
 
-        alpha = 1.5  # weight of infection percent (that is global awareness) in the final score
-        x = (
-            score + alpha * infection_percent
-        )  # final score combining local and global awareness factors
 
-        # Sigmoid function
-        sigmoid = 1 / (1 + np.exp(-k * (x - b)))  # the probability
+def spread_awareness(pop: Population, pos: np.ndarray, awareness_rate: float,
+                     rng: np.random.Generator) -> None:
+    """Local awareness: an unaware individual at pos may become aware from aware neighbours."""
+    grid = pop.grid
+    r, c = pos[0], pos[1]
+    if grid[r, c] not in (SUSCEPTIBLE, INFECTED):  # was `== 0 | == 1`, which never matched 0
+        return
 
-        if (
-            awareness_rate and chance < awareness_rate * sigmoid
-        ):  # If the individual falls in the chance of being aware
-            if grid[pos[0], pos[1]] == 1:  # if the individual is infected
-                grid[pos[0], pos[1]] = 5  # make the individual aware and infected
-                was_ever_aware_grid[pos[0], pos[1]] = (
-                    True  # update the individual to having been aware
-                )
-            else:
-                grid[pos[0], pos[1]] = 4  # make the individual aware and susceptible
-                was_ever_aware_grid[pos[0], pos[1]] = (
-                    True  # update the individual to having been aware
-                )
+    infection_percent = count(grid, *SPREADER_STATES) / grid.size
+    score = get_score(grid, get_neighbours(pos, pop.size), *AWARE_STATES)
+
+    k = 1 + (33 - 1) * score**2  # steepness grows with aware neighbours
+    b = 0.74 + (0.24 - 0.74) * np.exp(-score)  # threshold
+    x = score + 1.5 * infection_percent
+    sigmoid = 1 / (1 + np.exp(-k * (x - b)))
+
+    if rng.random() < awareness_rate * sigmoid:
+        grid[r, c] = INFECTED_AWARE if grid[r, c] == INFECTED else SUSCEPTIBLE_AWARE
+        pop.was_ever_aware[r, c] = True

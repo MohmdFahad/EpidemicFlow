@@ -1,137 +1,87 @@
-import numpy as np
+"""Grid set-up and neighbourhood helpers."""
+
 from dataclasses import dataclass
 
-SUSCEPTIBLE, INFECTED, RECOVERED = 0, 1, 2
-SUSCEPTIBLE_QUARANTINED, SUSCEPTIBLE_AWARE = 3, 4
-INFECTED_AWARE, INFECTED_QUARANTINED = 5, 6
+import numpy as np
 
-INFECTED_STATES    = (INFECTED, INFECTED_AWARE, INFECTED_QUARANTINED)
-SPREADER_STATES    = (INFECTED, INFECTED_AWARE)          # quarantined people don't spread
+# Individual states stored in the grid
+SUSCEPTIBLE = 0
+INFECTED = 1
+RECOVERED = 2
+SUSCEPTIBLE_QUARANTINED = 3
+SUSCEPTIBLE_AWARE = 4
+INFECTED_AWARE = 5
+INFECTED_QUARANTINED = 6
+
+INFECTED_STATES = (INFECTED, INFECTED_AWARE, INFECTED_QUARANTINED)
+SPREADER_STATES = (INFECTED, INFECTED_AWARE)  # quarantined people do not spread
 SUSCEPTIBLE_STATES = (SUSCEPTIBLE, SUSCEPTIBLE_QUARANTINED, SUSCEPTIBLE_AWARE)
-AWARE_STATES       = (SUSCEPTIBLE_AWARE, INFECTED_AWARE)
+AWARE_STATES = (SUSCEPTIBLE_AWARE, INFECTED_AWARE)
+
+NEIGHBOUR_OFFSETS = np.array(
+    [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]
+)
+
 
 @dataclass
 class Population:
-    grid: np.ndarray
-    recovery_grid: np.ndarray
-    was_ever_aware: np.ndarray
-    was_ever_quarantined: np.ndarray
-    quarantine_duration_grid: np.ndarray
-    infection_day_grid: np.ndarray
+    """All per-individual state for one simulation, kept together."""
 
-# Generates the grids required for the simulation
-# Input -
-#   grid_size - grid size
-#   init_infections - the initial amount of infections the grid should consist of
-# Output -
-#   grid - the main grid used for labeling the state of each individual
-#   recovery_grid - a grid to track when each individual will recover
-#   was_ever_aware - a grid to track every individual of whether they were ever aware
-#   was_ever_quarantined - a grid to track every individual of whether they ever quarantined
-#   quarantine_duration_grid - a grid to track how many days are left for each quarantined individual
-#   infection_day_grid - a grid to track the day each individual got infected
-def make_grid(
-        grid_size: int, init_infections: int, rng: np.random.Generator
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    grid: np.ndarray  # current state of each individual (see constants above)
+    recovery_grid: np.ndarray  # day each infected individual recovers (-1 = not set)
+    was_ever_aware: np.ndarray  # True if the individual was ever aware
+    was_ever_quarantined: np.ndarray  # True if the individual ever quarantined
+    quarantine_duration_grid: np.ndarray  # days of quarantine left
+    infection_day_grid: np.ndarray  # day the individual was infected (-1 = never)
+
+    @property
+    def size(self) -> int:
+        return self.grid.shape[0]
+
+
+def make_grid(grid_size: int, init_infections: int, rng: np.random.Generator) -> Population:
+    """Create a grid_size x grid_size population with init_infections random infected individuals."""
+    n_total = grid_size * grid_size
+    if not 0 < init_infections <= n_total:
+        raise ValueError(f"init_infections must be between 1 and {n_total}")
 
     grid = np.zeros((grid_size, grid_size), dtype=np.int8)
+    infected_idx = rng.choice(n_total, size=init_infections, replace=False)
+    grid.flat[infected_idx] = INFECTED
 
-    # Used for plotting infections on the main grid
-    for i in range(init_infections):
-        mask = grid == 0  # identify susceptible individuals
-        view = grid[mask]
-        new = np.zeros(view.shape)
-        randindex = rng.integers(0, new.size)  # chooses a random individual
-        new[randindex] = 1  # update the individual to infected
-        grid[mask] = new  # apply the change
+    infection_day_grid = np.full(grid.shape, -1, dtype=np.int64)
+    infection_day_grid[grid == INFECTED] = 0  # initial cases were infected on day 0
 
-    recovery_grid = np.zeros_like(grid)
-    recovery_grid[...] = (
-        -1
-    )  # -1 used to indicate recovered / never infected individuals
-    recovery_grid = recovery_grid.astype(np.int64)
-
-    was_ever_aware = np.full(
-        shape=grid.shape, fill_value=False, dtype=np.bool
-    )  # Generates a grid of False to start every individual of with the status of not being aware
-    was_ever_quarantined = np.full(
-        shape=grid.shape, fill_value=False, dtype=np.bool
-    )  # Generates a grid of False to start every individual of with the status of not being quarantined
-
-    quarantine_duration_grid = np.zeros(
-        (grid_size, grid_size), dtype=np.int_
-    )  # to track how many days are left for each quarantined individual
-
-    infection_day_grid = np.zeros_like(grid, dtype=np.int64)
-    infection_day_grid[...] = (
-        -1
-    )  # -1 used to indicate recovered / never infected individuals
-    infection_day_grid[grid == 1] = 0  # the initial cases were infected on day 0
-
-    return (
-        grid,
-        recovery_grid,
-        was_ever_aware,
-        was_ever_quarantined,
-        quarantine_duration_grid,
-        infection_day_grid,
+    return Population(
+        grid=grid,
+        recovery_grid=np.full(grid.shape, -1, dtype=np.int64),
+        was_ever_aware=np.zeros(grid.shape, dtype=bool),
+        was_ever_quarantined=np.zeros(grid.shape, dtype=bool),
+        quarantine_duration_grid=np.zeros(grid.shape, dtype=np.int64),
+        infection_day_grid=infection_day_grid,
     )
 
-# Used for generating neighbours for an individual
-# Input -
-#   x - the position of an individual
-#   gridsize - square root of the size of the grid (15 x 15 - 15)
-# Output -
-#   neighbours - a two dimensional array of positions of the neighbours
-def get_neighbours(x: np.ndarray, gridsize: int) -> np.ndarray:
 
-    if x.shape == (0,):  # prevents generating neighbours invalid individual position
-        return x
-
-    possible_neighbours = np.array(
-        [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]
-    )  # all possible neighbours
-
-    neighbours = (
-        x + possible_neighbours
-    )  # generates all possible neighbours for the individual
-
-    mask1 = (neighbours[:, 0] < gridsize) & (
-        neighbours[:, 1] < gridsize
-    )  # Ensures the neighbours generated are valid
-
-    mask2 = (neighbours[:, 0] >= 0) & (
-        neighbours[:, 1] >= 0
-    )  # Ensures the neighbours generated are valid
-
-    row_mask = mask1 & mask2  # filters out invalid neighbours
-    neighbours = neighbours[row_mask]  # applies the filter to the neighbours
-
-    return neighbours
+def get_neighbours(pos: np.ndarray, gridsize: int) -> np.ndarray:
+    """Return the (row, col) positions of the up-to-8 neighbours of pos that lie inside the grid."""
+    neighbours = np.asarray(pos) + NEIGHBOUR_OFFSETS
+    inside = np.all((neighbours >= 0) & (neighbours < gridsize), axis=1)
+    return neighbours[inside]
 
 
-# Used for getting the positions of a certain label
-# Input -
-#   grid - a N x N grid to check for labels
-#   labels - one or more label numbers [0,1,2,3,4,5,6]
-# Output -
-#   positions - a two-dimensional array of the positions
 def get_pos(grid: np.ndarray, *labels: int) -> np.ndarray:
-    # np.isin marks every cell whose state is one of the labels; np.argwhere returns their (row, col) positions
+    """Return an (n, 2) array of positions whose state is any of labels."""
     return np.argwhere(np.isin(grid, labels))
 
-# Used to obtain a percentage of a label among neighbours
-# Input -
-#   grid - an N x N grid to analyze individual spatiality
-#   neighbours - a 2 dim array of positions of neighbours
-#   labels - one or more labels to obtain a percentage of
-# Output -
-#   score - the percentage of that label among the passed neighbours
+
 def get_score(grid: np.ndarray, neighbours: np.ndarray, *labels: int) -> float:
-    # in case of there not existing any neighbours
+    """Return the fraction (0 to 1) of the given neighbours whose state is any of labels."""
     if len(neighbours) == 0:
         return 0.0
-    # to get the neighbours tag
-    neighbour_tag = grid[neighbours[:, 0].astype(np.int_), neighbours[:, 1].astype(np.int_)]
-    # fraction of neighbours whose tag is one of the labels: correct for 8 (inside), 5 (edge) or 3 (corner) neighbours
-    return float(np.isin(neighbour_tag, labels).mean())
+    tags = grid[neighbours[:, 0], neighbours[:, 1]]
+    return float(np.isin(tags, labels).mean())
+
+
+def count(grid: np.ndarray, *labels: int) -> int:
+    """Number of individuals in any of the given states."""
+    return int(np.isin(grid, labels).sum())
